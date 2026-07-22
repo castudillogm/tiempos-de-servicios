@@ -56,9 +56,14 @@ async function processAndCreateSQLTable(conn, fileName, tableName) {
     const colNumPartidas = getCol(['numpartidas']);
     const colDuracionMinutos = getCol(['duracionminutos']);
 
+    const usedCols = [colOrigen, colDestino, colFasePadre, colFase, colADR, colFechaExpedicion, colCompleto, colCodigo, colNumPartidas, colDuracionMinutos].map(c => c.toLowerCase());
+    const extraCols = columns.filter(c => !usedCols.includes(c) && c !== "''");
+    const extraColsSelect = extraCols.length > 0 ? extraCols.map(c => `"${c}"`).join(', ') + ',' : '';
+
     const createTableQuery = `
         CREATE TABLE ${tableName} AS 
         SELECT 
+            ${extraColsSelect}
             COALESCE(${colOrigen}, '') AS PlazaOrigenRaw,
             COALESCE(${colDestino}, '') AS PlazaDestinoRaw,
             CASE 
@@ -193,8 +198,22 @@ export async function loadDataFromFile(file, tableName = 'records') {
 
 export async function getUniqueValuesFromDB(field) {
     const { conn } = await getDuckDB();
-    const result = await conn.query(`SELECT DISTINCT ${field} as val FROM records WHERE ${field} IS NOT NULL AND ${field} != '' ORDER BY val`);
+    const result = await conn.query(`SELECT DISTINCT "${field}" as val FROM records WHERE "${field}" IS NOT NULL AND CAST("${field}" AS VARCHAR) != '' ORDER BY val`);
     return result.toArray().map(r => r.toJSON().val);
+}
+
+export async function getDynamicColumns(tableName = 'records') {
+    const { conn } = await getDuckDB();
+    const descResult = await conn.query(`DESCRIBE ${tableName}`);
+    const allCols = descResult.toArray().map(r => r.toJSON());
+    
+    const fixedCols = ['plazaorigenraw', 'plazadestinoraw', 'plazaorigen', 'plazadestino', 'zonaorigen', 'zonadestino', 'fasepadre', 'fase', 'adr', 'adr_binario', 'fechaexpedicion', 'fechats', 'dia', 'dia_binario', 'completo', 'codigo', 'numpartidas', 'duracionminutos'];
+    
+    const dynamicCols = allCols
+        .filter(c => !fixedCols.includes(c.column_name.toLowerCase()) && c.column_type === 'VARCHAR')
+        .map(c => c.column_name);
+        
+    return dynamicCols;
 }
 
 export async function executeQuery(query) {

@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useEffect, useTransition } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { calculateTukeyStats, fitOLS, calculateGaussianCurve } from './utils/statistics';
 import { defaultFilterState } from './utils/dataProcessing';
-import { loadDataFromFile, loadDataFromURL, executeQuery, getUniqueValuesFromDB } from './utils/duckdb';
+import { loadDataFromFile, loadDataFromURL, executeQuery, getUniqueValuesFromDB, getDynamicColumns } from './utils/duckdb';
 
 const MultiSelectCheckbox = ({ label, options, value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -87,6 +87,9 @@ function App() {
   const [googleSheetUrl, setGoogleSheetUrl] = useState("");
   const [gaussPct, setGaussPct] = useState(100);
   const [tempGaussPct, setTempGaussPct] = useState(100);
+  const [dynamicColumns, setDynamicColumns] = useState([]);
+  const [pendingColumns, setPendingColumns] = useState(null);
+  const [selectedPendingColumns, setSelectedPendingColumns] = useState([]);
   
   const [dbOptions, setDbOptions] = useState({
     FasePadre: [], Fase: [], PlazaOrigen: [], PlazaDestino: [], ZonaDestino: [], Dia: [], ADR: []
@@ -94,48 +97,58 @@ function App() {
 
   const fileInputRef = useRef(null);
   
-  const buildWhereClause = (currentFilters, excludeField = null) => {
+  const buildWhereClause = (currentFilters, excludeField = null, dynCols = dynamicColumns) => {
     let clauses = [];
     if (currentFilters.excluirCeros) clauses.push(`DuracionMinutos > 0`);
     
-    const addInClause = (field, val) => {
+    const addInClause = (field, filterKey) => {
+      const val = currentFilters[filterKey];
       if (field !== excludeField && val && val !== 'ALL') {
          const list = val.split(',').map(v => `'${v.replace(/'/g, "''")}'`).join(',');
-         clauses.push(`${field} IN (${list})`);
+         clauses.push(`"${field}" IN (${list})`);
       }
     };
     
-    addInClause('ZonaOrigen', currentFilters.zonaOrigen);
-    addInClause('PlazaOrigen', currentFilters.plazaOrigen);
-    addInClause('ZonaDestino', currentFilters.zonaDestino);
-    addInClause('PlazaDestino', currentFilters.plazaDestino);
-    addInClause('FasePadre', currentFilters.fasePadre);
-    addInClause('Fase', currentFilters.fase);
-    addInClause('ADR', currentFilters.adr);
-    addInClause('Completo', currentFilters.completo);
-    addInClause('Dia', currentFilters.dia);
+    addInClause('ZonaOrigen', 'zonaOrigen');
+    addInClause('PlazaOrigen', 'plazaOrigen');
+    addInClause('ZonaDestino', 'zonaDestino');
+    addInClause('PlazaDestino', 'plazaDestino');
+    addInClause('FasePadre', 'fasePadre');
+    addInClause('Fase', 'fase');
+    addInClause('ADR', 'adr');
+    addInClause('Completo', 'completo');
+    addInClause('Dia', 'dia');
+    
+    dynCols.forEach(col => addInClause(col, col));
 
     return clauses.length > 0 ? 'WHERE ' + clauses.join(' AND ') : '';
   };
   
-  const getFilteredUniqueValues = async (field, currentFilters) => {
-      const where = buildWhereClause(currentFilters, field);
-      const query = `SELECT DISTINCT ${field} as val FROM records ${where} ${where ? 'AND' : 'WHERE'} ${field} IS NOT NULL AND ${field} != '' ORDER BY val`;
+  const getFilteredUniqueValues = async (field, currentFilters, dynCols = dynamicColumns) => {
+      const where = buildWhereClause(currentFilters, field, dynCols);
+      const query = `SELECT DISTINCT "${field}" as val FROM records ${where} ${where ? 'AND' : 'WHERE'} "${field}" IS NOT NULL AND CAST("${field}" AS VARCHAR) != '' ORDER BY val`;
       const result = await executeQuery(query);
       return result.map(r => r.val);
   };
 
-  const updateDependentOptions = async (currentFilters) => {
+  const updateDependentOptions = async (currentFilters, dynCols = dynamicColumns) => {
     try {
-      const [fasePadre, fase, plazaOrigen, plazaDestino, zonaDestino, dia, adr] = await Promise.all([
-        getFilteredUniqueValues('FasePadre', currentFilters),
-        getFilteredUniqueValues('Fase', currentFilters),
-        getFilteredUniqueValues('PlazaOrigen', currentFilters),
-        getFilteredUniqueValues('PlazaDestino', currentFilters),
-        getFilteredUniqueValues('ZonaDestino', currentFilters),
-        getFilteredUniqueValues('Dia', currentFilters),
-        getFilteredUniqueValues('ADR', currentFilters)
-      ]);
+      const fixedPromises = [
+        getFilteredUniqueValues('FasePadre', currentFilters, dynCols),
+        getFilteredUniqueValues('Fase', currentFilters, dynCols),
+        getFilteredUniqueValues('PlazaOrigen', currentFilters, dynCols),
+        getFilteredUniqueValues('PlazaDestino', currentFilters, dynCols),
+        getFilteredUniqueValues('ZonaDestino', currentFilters, dynCols),
+        getFilteredUniqueValues('Dia', currentFilters, dynCols),
+        getFilteredUniqueValues('ADR', currentFilters, dynCols)
+      ];
+      
+      const dynPromises = dynCols.map(col => getFilteredUniqueValues(col, currentFilters, dynCols));
+      
+      const results = await Promise.all([...fixedPromises, ...dynPromises]);
+      
+      const [fasePadre, fase, plazaOrigen, plazaDestino, zonaDestino, dia, adr] = results.slice(0, 7);
+      const dynResults = results.slice(7);
       
       const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
       dia.sort((a, b) => {
@@ -144,21 +157,26 @@ function App() {
         return (ia > -1 ? ia : 99) - (ib > -1 ? ib : 99);
       });
 
-      setDbOptions({ FasePadre: fasePadre, Fase: fase, PlazaOrigen: plazaOrigen, PlazaDestino: plazaDestino, ZonaDestino: zonaDestino, Dia: dia, ADR: adr });
+      const newDbOptions = { FasePadre: fasePadre, Fase: fase, PlazaOrigen: plazaOrigen, PlazaDestino: plazaDestino, ZonaDestino: zonaDestino, Dia: dia, ADR: adr };
+      dynCols.forEach((col, idx) => {
+         newDbOptions[col] = dynResults[idx];
+      });
+
+      setDbOptions(newDbOptions);
     } catch (e) {
       console.error("Error fetching options", e);
     }
   };
 
-  const executeFilteredQuery = async (currentFilters) => {
-    const where = buildWhereClause(currentFilters);
+  const executeFilteredQuery = async (currentFilters, dynCols = dynamicColumns) => {
+    const where = buildWhereClause(currentFilters, null, dynCols);
     const query = `SELECT NumPartidas, DuracionMinutos, Fase, ADR, Dia_Binario FROM records ${where}`;
     
     setIsLoading(true);
     try {
       const result = await executeQuery(query);
       setRecords(result);
-      await updateDependentOptions(currentFilters); // <-- update dependent filters
+      await updateDependentOptions(currentFilters, dynCols);
     } catch (e) {
       console.error(e);
       alert("Error ejecutando filtro SQL");
@@ -174,9 +192,18 @@ function App() {
     setIsLoading(true);
     try {
       await loadDataFromFile(file);
-      setHasData(true);
-      setFilters(defaultFilterState);
-      await executeFilteredQuery(defaultFilterState);
+      const dynCols = await getDynamicColumns();
+      
+      if (dynCols.length > 0) {
+        setPendingColumns(dynCols);
+        setSelectedPendingColumns(dynCols);
+      } else {
+        setDynamicColumns([]);
+        const initialFilters = { ...defaultFilterState };
+        setHasData(true);
+        setFilters(initialFilters);
+        await executeFilteredQuery(initialFilters, []);
+      }
     } catch (err) {
       alert(`Error procesando archivo: ${err.message}`);
     } finally {
@@ -189,14 +216,34 @@ function App() {
     setIsLoading(true);
     try {
       await loadDataFromURL(googleSheetUrl);
-      setHasData(true);
-      setFilters(defaultFilterState);
-      await executeFilteredQuery(defaultFilterState);
+      const dynCols = await getDynamicColumns();
+      
+      if (dynCols.length > 0) {
+        setPendingColumns(dynCols);
+        setSelectedPendingColumns(dynCols);
+      } else {
+        setDynamicColumns([]);
+        const initialFilters = { ...defaultFilterState };
+        setHasData(true);
+        setFilters(initialFilters);
+        await executeFilteredQuery(initialFilters, []);
+      }
     } catch (err) {
       alert(`Error obteniendo datos: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleConfirmColumns = async () => {
+    setDynamicColumns(selectedPendingColumns);
+    const initialFilters = { ...defaultFilterState };
+    selectedPendingColumns.forEach(col => initialFilters[col] = 'ALL');
+    
+    setHasData(true);
+    setFilters(initialFilters);
+    await executeFilteredQuery(initialFilters, selectedPendingColumns);
+    setPendingColumns(null);
   };
 
   const handleFilterChange = (key, val) => {
@@ -333,9 +380,9 @@ function App() {
       <div style={{ padding: '0 40px 40px 40px' }}>
       
       {/* Data Load Area */}
-      {!hasData && (
+      {!hasData && pendingColumns === null && (
         <div className="card" style={{ marginBottom: '30px', display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: 'var(--grupamar-gris-claro)', border: 'none' }}>
-          <h3 style={{ color: 'var(--grupamar-azul-oscuro)', margin: 0 }}>Cargar Datos CSV (Soporta millones de filas)</h3>
+          <h3 style={{ color: 'var(--grupamar-azul-oscuro)', margin: 0 }}>Carga los datos aquí Por favor</h3>
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
             <input type="file" accept=".csv" onChange={handleFileUpload} ref={fileInputRef} style={{ display: 'none' }} />
             <button onClick={() => fileInputRef.current?.click()} style={{ padding: '12px 30px', borderRadius: '30px', border: 'none', backgroundColor: 'var(--grupamar-azul-oscuro)', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -357,6 +404,41 @@ function App() {
         </div>
       )}
 
+      {/* Pending Columns Selection Area */}
+      {!hasData && pendingColumns !== null && (
+        <div className="card" style={{ marginBottom: '30px', display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: 'var(--grupamar-gris-claro)', border: 'none' }}>
+          <h3 style={{ color: 'var(--grupamar-azul-oscuro)', margin: 0 }}>Nuevas columnas encontradas</h3>
+          <p style={{ margin: 0, color: '#444' }}>Se detectaron las siguientes columnas adicionales. Selecciona cuáles quieres utilizar como filtros:</p>
+          
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
+            {pendingColumns.map(col => (
+              <label key={col} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '10px 15px', backgroundColor: '#fff', borderRadius: '20px', border: '1px solid #ccc', fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)', fontSize: '14px' }}>
+                <input 
+                  type="checkbox" 
+                  checked={selectedPendingColumns.includes(col)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedPendingColumns([...selectedPendingColumns, col]);
+                    } else {
+                      setSelectedPendingColumns(selectedPendingColumns.filter(c => c !== col));
+                    }
+                  }}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                {col}
+              </label>
+            ))}
+          </div>
+
+          <div style={{ marginTop: '10px' }}>
+            <button onClick={handleConfirmColumns} style={{ padding: '12px 30px', borderRadius: '30px', border: 'none', backgroundColor: 'var(--grupamar-azul-oscuro)', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+              Continuar y Analizar
+            </button>
+          </div>
+          {isLoading && <span style={{ color: 'var(--grupamar-naranja)', fontWeight: 'bold' }}>Procesando Datos, Espere...</span>}
+        </div>
+      )}
+
       {hasData && (
         <>
           {/* Filters Area */}
@@ -368,6 +450,15 @@ function App() {
             <MultiSelectCheckbox label="Zona Destino:" options={dbOptions.ZonaDestino} value={filters.zonaDestino} onChange={(val) => handleFilterChange('zonaDestino', val)} />
             <MultiSelectCheckbox label="Día Expedición:" options={dbOptions.Dia} value={filters.dia} onChange={(val) => handleFilterChange('dia', val)} />
             <MultiSelectCheckbox label="ADR:" options={dbOptions.ADR} value={filters.adr} onChange={(val) => handleFilterChange('adr', val)} />
+            {dynamicColumns.length > 0 && dynamicColumns.map(col => (
+              <MultiSelectCheckbox 
+                key={col} 
+                label={`${col}:`} 
+                options={dbOptions[col] || []} 
+                value={filters[col] || 'ALL'} 
+                onChange={(val) => handleFilterChange(col, val)} 
+              />
+            ))}
             
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)', fontSize: '13px', marginLeft: '10px', paddingBottom: '10px' }}>
               <input 
@@ -381,7 +472,12 @@ function App() {
 
             {(isPending || isLoading) && <span style={{ position: 'absolute', top: '10px', right: '20px', color: 'var(--grupamar-naranja)', fontWeight: 'bold', fontSize: '12px' }}>Ejecutando SQL...</span>}
 
-            <button onClick={() => { setFilters(defaultFilterState); executeFilteredQuery(defaultFilterState); }} style={{ padding: '10px 20px', borderRadius: '30px', border: '1px solid var(--grupamar-azul-oscuro)', backgroundColor: 'transparent', color: 'var(--grupamar-azul-oscuro)', cursor: 'pointer', fontWeight: 'bold', marginLeft: 'auto' }}>
+            <button onClick={() => { 
+                const resetFilters = { ...defaultFilterState };
+                dynamicColumns.forEach(c => resetFilters[c] = 'ALL');
+                setFilters(resetFilters); 
+                executeFilteredQuery(resetFilters); 
+              }} style={{ padding: '10px 20px', borderRadius: '30px', border: '1px solid var(--grupamar-azul-oscuro)', backgroundColor: 'transparent', color: 'var(--grupamar-azul-oscuro)', cursor: 'pointer', fontWeight: 'bold', marginLeft: 'auto' }}>
               Limpiar Filtros
             </button>
           </div>
