@@ -1,0 +1,87 @@
+:root {
+  /* GrupaMar Brand Colors */
+  --grupamar-azul-oscuro: #091197;
+  --grupamar-azul-claro: #03A9EC;
+  --grupamar-blanco: #FFFFFF;
+  --grupamar-gris-claro: #F6F6F6;
+  --grupamar-naranja: #F75600;
+
+  /* Typography */
+  --font-grupamar: 'Basier Square', 'Arial Nova', Arial, sans-serif;
+
+  /* Theme mappings */
+  --text: #333333;
+  --text-h: var(--grupamar-azul-oscuro);
+  --bg: var(--grupamar-blanco);
+  --border: #e5e4e7;
+  --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+
+  font: 16px/1.5 var(--font-grupamar);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background-color: var(--grupamar-gris-claro); /* Fallback bg if needed, though root should be white */
+}
+
+#root {
+  width: 100%;
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background-color: var(--grupamar-blanco);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-grupamar);
+  color: var(--grupamar-azul-oscuro);
+  margin-top: 0;
+}
+
+h3 {
+  color: var(--grupamar-azul-claro);
+}
+
+button {
+  background-color: var(--grupamar-azul-oscuro);
+  color: var(--grupamar-blanco);
+  border: none;
+  border-radius: 30px;
+  padding: 12px 24px;
+  font-family: var(--font-grupamar);
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: var(--grupamar-azul-claro);
+}
+
+input, select {
+  font-family: var(--font-grupamar);
+  border: 1px solid #ccc;
+  border-radius: 30px;
+  padding: 10px 15px;
+  outline: none;
+}
+
+input:focus, select:focus {
+  border-color: var(--grupamar-azul-claro);
+}
+
+/* Rounded cards */
+.card {
+  background-color: var(--grupamar-blanco);
+  border: 1px solid var(--border);
+  border-radius: 30px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
