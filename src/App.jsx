@@ -488,22 +488,22 @@ function App() {
 
   const renderCustomNodeElement = ({ nodeDatum, toggleNode }) => (
     <g>
-      <circle r="20" fill="var(--grupamar-azul-claro)" onClick={toggleNode} style={{ cursor: 'pointer' }} />
-      <text fill="#fff" x="-10" y="5" onClick={toggleNode} style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
+      <circle r="20" fill="var(--grupamar-azul-claro)" stroke="none" strokeWidth="0" onClick={toggleNode} style={{ cursor: 'pointer' }} />
+      <text fill="#fff" stroke="none" strokeWidth="0" x="-10" y="5" onClick={toggleNode} style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
         {String(nodeDatum.name || '').substring(0, 2).toUpperCase()}
       </text>
-      <text fill="#333" x="25" y="-5" style={{ fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
+      <text fill="#000" stroke="none" strokeWidth="0" x="25" y="-5" style={{ fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
         {nodeDatum.name}
       </text>
       {nodeDatum.attributes?.Nivel && (
-        <text fill="#666" x="25" y="15" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
+        <text fill="#000" stroke="none" strokeWidth="0" x="25" y="15" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
           {nodeDatum.attributes.Nivel}
         </text>
       )}
       {nodeDatum.pathKey && (
         <g transform="translate(-10, -35)" onClick={() => handlePruneNode(nodeDatum.pathKey)} style={{ cursor: 'pointer' }}>
-          <circle r="10" fill="var(--grupamar-naranja)" />
-          <text fill="#fff" x="-4.5" y="4.5" fontSize="14px" fontWeight="bold">✕</text>
+          <circle r="10" fill="var(--grupamar-naranja)" stroke="none" strokeWidth="0" />
+          <text fill="#fff" stroke="none" strokeWidth="0" x="-4.5" y="4.5" fontSize="14px" fontWeight="bold" style={{ fontFamily: 'Arial, sans-serif' }}>✕</text>
           <title>Podar rama</title>
         </g>
       )}
