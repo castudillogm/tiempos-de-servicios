@@ -17,29 +17,7 @@ const MultiSelectCheckbox = ({ label, options, value, onChange }) => {
       if (ref.current && !ref.current.contains(event.target)) setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
-  
-  const handleSaveTree = async () => {
-    const name = prompt("Introduce un nombre para guardar esta ramificación:");
-    if (!name) return;
-    
-    try {
-      setIsLoading(true);
-      await addDoc(collection(db, "savedTrees"), {
-        name,
-        treeFilters,
-        filterOrder,
-        createdAt: new Date()
-      });
-      alert("Ramificación guardada exitosamente en Firebase!");
-    } catch (e) {
-      console.error("Error guardando ramificación: ", e);
-      alert("Hubo un error al guardar.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const toggleOption = (opt) => {
@@ -56,28 +34,6 @@ const MultiSelectCheckbox = ({ label, options, value, onChange }) => {
     onChange(newArr.length > 0 ? newArr.join(',') : 'ALL');
   };
 
-
-  const handleSaveTree = async () => {
-    const name = prompt("Introduce un nombre para guardar esta ramificación:");
-    if (!name) return;
-    
-    try {
-      setIsLoading(true);
-      await addDoc(collection(db, "savedTrees"), {
-        name,
-        treeFilters,
-        filterOrder,
-        createdAt: new Date()
-      });
-      alert("Ramificación guardada exitosamente en Firebase!");
-    } catch (e) {
-      console.error("Error guardando ramificación: ", e);
-      alert("Hubo un error al guardar.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
   return (
     <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: '5px', position: 'relative', minWidth: '160px' }}>
       <label style={{ fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)', fontSize: '13px' }}>{label}</label>
@@ -258,29 +214,7 @@ function App() {
       dia.sort((a, b) => {
         const ia = diasSemana.indexOf(a);
         const ib = diasSemana.indexOf(b);
-      
-  const handleSaveTree = async () => {
-    const name = prompt("Introduce un nombre para guardar esta ramificación:");
-    if (!name) return;
-    
-    try {
-      setIsLoading(true);
-      await addDoc(collection(db, "savedTrees"), {
-        name,
-        treeFilters,
-        filterOrder,
-        createdAt: new Date()
-      });
-      alert("Ramificación guardada exitosamente en Firebase!");
-    } catch (e) {
-      console.error("Error guardando ramificación: ", e);
-      alert("Hubo un error al guardar.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  return (ia > -1 ? ia : 99) - (ib > -1 ? ib : 99);
+        return (ia > -1 ? ia : 99) - (ib > -1 ? ib : 99);
       });
 
       const newDbOptions = { FasePadre: fasePadre, Fase: fase, PlazaOrigen: plazaOrigen, PlazaDestino: plazaDestino, ZonaDestino: zonaDestino, Dia: dia, ADR: adr };
@@ -531,7 +465,6 @@ function App() {
     return buildNodes(0);
   }, [treeFilters, filterOrder]);
 
-
   const handleSaveTree = async () => {
     const name = prompt("Introduce un nombre para guardar esta ramificación:");
     if (!name) return;
@@ -552,7 +485,7 @@ function App() {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div style={{ fontFamily: 'var(--font-grupamar)', backgroundColor: '#ffffff', minHeight: '100vh' }}>
       
@@ -660,7 +593,7 @@ function App() {
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)', fontSize: '13px', marginLeft: '10px', paddingBottom: '10px' }}>
               <input 
                 type="checkbox" 
-                checked={filters.excluirCeros} 
+                checked={(activeTab === 'ANALISIS' ? analysisFilters : treeFilters).excluirCeros} 
                 onChange={(e) => handleFilterChange('excluirCeros', e.target.checked)} 
                 style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               />
@@ -672,8 +605,17 @@ function App() {
             <button onClick={() => { 
                 const resetFilters = { ...defaultFilterState };
                 dynamicColumns.forEach(c => resetFilters[c] = 'ALL');
-                setFilters(resetFilters); 
-                executeFilteredQuery(resetFilters); 
+                if (activeTab === 'ANALISIS') {
+                  setAnalysisFilters(resetFilters); 
+                  executeFilteredQuery(resetFilters); 
+                } else {
+                  setTreeFilters(resetFilters);
+                  setIsLoading(true);
+                  updateDependentOptions(resetFilters, dynamicColumns).then(newOpts => {
+                    if (newOpts) setTreeDbOptions(newOpts);
+                    setIsLoading(false);
+                  });
+                }
               }} style={{ padding: '10px 20px', borderRadius: '30px', border: '1px solid var(--grupamar-azul-oscuro)', backgroundColor: 'transparent', color: 'var(--grupamar-azul-oscuro)', cursor: 'pointer', fontWeight: 'bold', marginLeft: 'auto' }}>
               Limpiar Filtros
             </button>
@@ -687,11 +629,17 @@ function App() {
               Módulo de Análisis
             </button>
             <button 
-              onClick={() => setActiveTab('RAMAS')} 
-              style={{ padding: '12px 25px', borderRadius: '10px 10px 0 0', border: 'none', backgroundColor: activeTab === 'RAMAS' ? 'var(--grupamar-azul-oscuro)' : '#e0e0e0', color: activeTab === 'RAMAS' ? '#fff' : '#444', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
+              onClick={() => setActiveTab('RAMIFICACIONES')} 
+              style={{ padding: '12px 25px', borderRadius: '10px 10px 0 0', border: 'none', backgroundColor: activeTab === 'RAMIFICACIONES' ? 'var(--grupamar-azul-oscuro)' : '#e0e0e0', color: activeTab === 'RAMIFICACIONES' ? '#fff' : '#444', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
             >
               Módulo de Ramificaciones
             </button>
+            
+            {activeTab === 'RAMIFICACIONES' && (
+              <button onClick={handleSaveTree} style={{ padding: '10px 20px', backgroundColor: 'var(--grupamar-naranja)', color: '#fff', border: 'none', borderRadius: '30px', cursor: 'pointer', fontWeight: 'bold', marginLeft: 'auto' }}>
+                Guardar Ramificación
+              </button>
+            )}
           </div>
 
           {activeTab === 'ANALISIS' && (
@@ -847,7 +795,7 @@ function App() {
             </div>
           )}
 
-          {activeTab === 'RAMAS' && (
+          {activeTab === 'RAMIFICACIONES' && (
             <div className="card" style={{ height: '600px', backgroundColor: '#fdfdfd', border: '2px dashed #ccc', display: 'flex', flexDirection: 'column' }}>
               <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px', textAlign: 'center' }}>Ramificaciones de Filtros Activos</h3>
               <div style={{ flex: 1, width: '100%', position: 'relative' }}>
