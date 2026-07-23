@@ -90,6 +90,58 @@ function App() {
   const [tempGaussPct, setTempGaussPct] = useState(100);
   const [activeTab, setActiveTab] = useState('ANALISIS');
   const [dynamicColumns, setDynamicColumns] = useState([]);
+  
+  const initialFixedFilters = [
+    { key: 'plazaOrigen', name: 'Plaza Origen', dbKey: 'PlazaOrigen' },
+    { key: 'fasePadre', name: 'Fase Padre', dbKey: 'FasePadre' },
+    { key: 'fase', name: 'Fase', dbKey: 'Fase' },
+    { key: 'plazaDestino', name: 'Plaza Destino', dbKey: 'PlazaDestino' },
+    { key: 'zonaDestino', name: 'Zona Destino', dbKey: 'ZonaDestino' },
+    { key: 'dia', name: 'Día Expedición', dbKey: 'Dia' },
+    { key: 'adr', name: 'ADR', dbKey: 'ADR' }
+  ];
+  const [filterOrder, setFilterOrder] = useState(initialFixedFilters);
+  const [draggedItemIdx, setDraggedItemIdx] = useState(null);
+
+  useEffect(() => {
+    setFilterOrder(prev => {
+      const newOrder = [...prev];
+      let changed = false;
+      dynamicColumns.forEach(col => {
+        if (!newOrder.find(f => f.key === col)) {
+          newOrder.push({ key: col, name: col, dbKey: col });
+          changed = true;
+        }
+      });
+      return changed ? newOrder : prev;
+    });
+  }, [dynamicColumns]);
+
+  const handleDragStart = (e, index) => {
+    setDraggedItemIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.target.style.opacity = '0.5';
+  };
+
+  const handleDragEnd = (e) => {
+    e.target.style.opacity = '1';
+    setDraggedItemIdx(null);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedItemIdx === null || draggedItemIdx === targetIndex) return;
+    const newOrder = [...filterOrder];
+    const draggedItem = newOrder[draggedItemIdx];
+    newOrder.splice(draggedItemIdx, 1);
+    newOrder.splice(targetIndex, 0, draggedItem);
+    setFilterOrder(newOrder);
+  };
+
   const [pendingColumns, setPendingColumns] = useState(null);
   const [selectedPendingColumns, setSelectedPendingColumns] = useState([]);
   
@@ -362,16 +414,7 @@ function App() {
   }, [records, paretoKeys]);
 
   const treeData = useMemo(() => {
-    const levels = [
-      { key: 'plazaOrigen', name: 'Plaza Origen' },
-      { key: 'fasePadre', name: 'Fase Padre' },
-      { key: 'fase', name: 'Fase' },
-      { key: 'zonaDestino', name: 'Zona Destino' },
-      { key: 'adr', name: 'ADR' },
-      { key: 'plazaDestino', name: 'Plaza Destino' }
-    ];
-
-    const activeLevels = levels.filter(lvl => filters[lvl.key] && filters[lvl.key] !== 'ALL');
+    const activeLevels = filterOrder.filter(lvl => filters[lvl.key] && filters[lvl.key] !== 'ALL');
 
     if (activeLevels.length === 0) {
       return [{ name: 'Filtros Inactivos', attributes: { Info: 'Selecciona al menos un filtro para ver la rama' } }];
@@ -385,20 +428,15 @@ function App() {
       return selectedValues.map(val => {
          const node = { name: val, attributes: { Nivel: currentLevel.name } };
          const children = buildNodes(levelIndex + 1);
-         if (children) {
+         if (children && children.length > 0) {
             node.children = children;
          }
          return node;
       });
     };
 
-    const rootChildren = buildNodes(0);
-
-    return [{
-       name: 'Filtros',
-       children: rootChildren
-    }];
-  }, [filters]);
+    return buildNodes(0);
+  }, [filters, filterOrder]);
 
   return (
     <div style={{ fontFamily: 'var(--font-grupamar)', backgroundColor: '#ffffff', minHeight: '100vh' }}>
@@ -484,21 +522,24 @@ function App() {
         <>
           {/* Filters Area */}
           <div className="card" style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '20px', backgroundColor: 'var(--grupamar-gris-claro)', border: 'none', alignItems: 'flex-end', position: 'relative' }}>
-            <MultiSelectCheckbox label="Plaza Origen:" options={dbOptions.PlazaOrigen} value={filters.plazaOrigen} onChange={(val) => handleFilterChange('plazaOrigen', val)} />
-            <MultiSelectCheckbox label="Fase Padre:" options={dbOptions.FasePadre} value={filters.fasePadre} onChange={(val) => handleFilterChange('fasePadre', val)} />
-            <MultiSelectCheckbox label="Fase:" options={dbOptions.Fase} value={filters.fase} onChange={(val) => handleFilterChange('fase', val)} />
-            <MultiSelectCheckbox label="Plaza Destino:" options={dbOptions.PlazaDestino} value={filters.plazaDestino} onChange={(val) => handleFilterChange('plazaDestino', val)} />
-            <MultiSelectCheckbox label="Zona Destino:" options={dbOptions.ZonaDestino} value={filters.zonaDestino} onChange={(val) => handleFilterChange('zonaDestino', val)} />
-            <MultiSelectCheckbox label="Día Expedición:" options={dbOptions.Dia} value={filters.dia} onChange={(val) => handleFilterChange('dia', val)} />
-            <MultiSelectCheckbox label="ADR:" options={dbOptions.ADR} value={filters.adr} onChange={(val) => handleFilterChange('adr', val)} />
-            {dynamicColumns.length > 0 && dynamicColumns.map(col => (
-              <MultiSelectCheckbox 
-                key={col} 
-                label={`${col}:`} 
-                options={dbOptions[col] || []} 
-                value={filters[col] || 'ALL'} 
-                onChange={(val) => handleFilterChange(col, val)} 
-              />
+            {filterOrder.map((fItem, index) => (
+              <div 
+                key={fItem.key}
+                draggable
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
+                style={{ cursor: 'grab' }}
+                title="Arrastra para reordenar"
+              >
+                <MultiSelectCheckbox 
+                  label={`${fItem.name}:`} 
+                  options={dbOptions[fItem.dbKey] || []} 
+                  value={filters[fItem.key] || 'ALL'} 
+                  onChange={(val) => handleFilterChange(fItem.key, val)} 
+                />
+              </div>
             ))}
             
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)', fontSize: '13px', marginLeft: '10px', paddingBottom: '10px' }}>
@@ -700,8 +741,8 @@ function App() {
                   orientation="horizontal"
                   pathFunc="step"
                   translate={{ x: 100, y: 250 }}
-                  nodeSize={{ x: 300, y: 100 }}
-                  separation={{ siblings: 1.5, nonSiblings: 2 }}
+                  nodeSize={{ x: 450, y: 100 }}
+                  separation={{ siblings: 1.2, nonSiblings: 1.5 }}
                 />
               </div>
             </div>
