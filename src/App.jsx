@@ -131,7 +131,7 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
       <g transform={`translate(${pos.x}, ${pos.y})`} onDoubleClick={handleDoubleClick}>
         <rect x="0" y="0" width="100" height="40" fill="#fff" stroke="var(--grupamar-azul-oscuro)" strokeWidth="2" rx="5" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ cursor: 'move' }} />
         {!isEditing ? (
-          <text x="50" y="25" textAnchor="middle" fill="#333" pointerEvents="none" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
+          <text x="50" y="25" textAnchor="middle" fill="#333" stroke="none" strokeWidth="0" pointerEvents="none" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
             {text}
           </text>
         ) : (
@@ -139,8 +139,8 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
             <input autoFocus value={text} onChange={e => setText(e.target.value)} onBlur={handleBlur} onPointerDown={e => e.stopPropagation()} style={{ width: '100%', height: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', textAlign: 'center', fontFamily: 'Arial' }} />
           </foreignObject>
         )}
-        <circle cx="100" cy="0" r="8" fill="red" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }} />
-        <text x="100" y="4" fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none">✕</text>
+        <circle cx="100" cy="0" r="8" fill="var(--grupamar-naranja)" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }} />
+        <text x="100" y="3.5" fill="#fff" stroke="none" strokeWidth="0" fontSize="10px" textAnchor="middle" pointerEvents="none">✕</text>
       </g>
     );
   }
@@ -149,7 +149,7 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
     return (
       <g transform={`translate(${pos.x}, ${pos.y})`} onDoubleClick={handleDoubleClick}>
         {!isEditing ? (
-          <text x="0" y="0" fill="#333" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ fontSize: '16px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold', cursor: 'move' }}>
+          <text x="0" y="0" fill="#333" stroke="none" strokeWidth="0" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ fontSize: '16px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold', cursor: 'move' }}>
             {text || 'Doble clic para editar'}
           </text>
         ) : (
@@ -157,8 +157,8 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
             <input autoFocus value={text} onChange={e => setText(e.target.value)} onBlur={handleBlur} onPointerDown={e => e.stopPropagation()} style={{ width: '100%', height: '100%', boxSizing: 'border-box', border: '1px solid #ccc', background: '#fff', fontFamily: 'Arial' }} />
           </foreignObject>
         )}
-        <circle cx="-10" cy="-5" r="8" fill="red" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }} />
-        <text x="-10" y="-1" fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none">✕</text>
+        <circle cx="-10" cy="-5" r="8" fill="var(--grupamar-naranja)" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }} />
+        <text x="-10" y="-1.5" fill="#fff" stroke="none" strokeWidth="0" fontSize="10px" textAnchor="middle" pointerEvents="none">✕</text>
       </g>
     );
   }
@@ -174,8 +174,8 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
         <line x1={pos.x} y1={pos.y} x2={pos.x2} y2={pos.y2} stroke="var(--grupamar-azul-oscuro)" strokeWidth="3" markerEnd="url(#arrowhead)" />
         <circle cx={pos.x} cy={pos.y} r="8" fill="var(--grupamar-azul-claro)" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ cursor: 'move' }} />
         <circle cx={pos.x2} cy={pos.y2} r="8" fill="var(--grupamar-naranja)" onPointerDown={(e) => handlePointerDown(e, 'endPoint')} style={{ cursor: 'move' }} />
-        <circle cx={pos.x} cy={pos.y - 15} r="8" fill="red" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }} />
-        <text x={pos.x} y={pos.y - 11} fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none">✕</text>
+        <circle cx={pos.x} cy={pos.y - 15} r="8" fill="var(--grupamar-naranja)" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }} />
+        <text x={pos.x} y={pos.y - 11.5} fill="#fff" stroke="none" strokeWidth="0" fontSize="10px" textAnchor="middle" pointerEvents="none">✕</text>
       </g>
     );
   }
