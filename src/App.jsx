@@ -561,31 +561,45 @@ function App() {
       const selectedValues = treeFilters[currentLevel.key].split(',');
       
       const nodes = [];
+      let hasPrunedChildren = false;
+      const prunedPaths = [];
+
       for (const val of selectedValues) {
          const currentPath = [...parentPath, val];
          const pathKey = currentPath.join('|||');
          
          const isPruned = hiddenNodePaths && hiddenNodePaths.includes(pathKey);
 
+         if (isPruned) {
+           hasPrunedChildren = true;
+           prunedPaths.push(pathKey);
+           continue;
+         }
+
          const node = { 
             name: val, 
             attributes: { Nivel: currentLevel.name },
             pathKey,
-            isPruned
          };
          
-         if (!isPruned) {
-           const children = buildNodes(levelIndex + 1, currentPath);
-           if (children && children.length > 0) {
-              node.children = children;
-           }
+         const childrenResult = buildNodes(levelIndex + 1, currentPath);
+         if (childrenResult) {
+            if (childrenResult.nodes && childrenResult.nodes.length > 0) {
+               node.children = childrenResult.nodes;
+            }
+            if (childrenResult.hasPrunedChildren) {
+               node.hasPrunedChildren = true;
+               node.prunedPaths = childrenResult.prunedPaths;
+            }
          }
          nodes.push(node);
       }
-      return nodes;
+      return { nodes, hasPrunedChildren, prunedPaths };
     };
 
-    const builtTree = buildNodes(0);
+    const rootResult = buildNodes(0);
+    const builtTree = rootResult ? rootResult.nodes : [];
+
     if (!builtTree || builtTree.length === 0) {
       return [{ name: 'Vacío', attributes: { Info: 'Todas las ramas han sido podadas.' } }];
     }
@@ -651,30 +665,30 @@ function App() {
 
     return (
       <g>
-        <circle r="20" fill={nodeDatum.isPruned ? "#ccc" : "var(--grupamar-azul-claro)"} stroke="none" strokeWidth="0" onClick={handleNodeClick} style={{ cursor: selectedTool ? 'crosshair' : 'pointer' }} />
+        <circle r="20" fill="var(--grupamar-azul-claro)" stroke="none" strokeWidth="0" onClick={handleNodeClick} style={{ cursor: selectedTool ? 'crosshair' : 'pointer' }} />
         <text fill="#fff" stroke="none" strokeWidth="0" x="-10" y="5" onClick={handleNodeClick} style={{ cursor: selectedTool ? 'crosshair' : 'pointer', fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
         {String(nodeDatum.name || '').substring(0, 2).toUpperCase()}
       </text>
-      <text fill={nodeDatum.isPruned ? "#888" : "#000"} stroke="none" strokeWidth="0" x="25" y="-5" style={{ fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
-        {nodeDatum.name} {nodeDatum.isPruned && "(Podado)"}
+      <text fill="#000" stroke="none" strokeWidth="0" x="25" y="-5" style={{ fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
+        {nodeDatum.name}
       </text>
       {nodeDatum.attributes?.Nivel && (
-        <text fill={nodeDatum.isPruned ? "#aaa" : "#000"} stroke="none" strokeWidth="0" x="25" y="15" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
+        <text fill="#000" stroke="none" strokeWidth="0" x="25" y="15" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
           {nodeDatum.attributes.Nivel}
         </text>
       )}
-      {nodeDatum.pathKey && !nodeDatum.isPruned && (
+      {nodeDatum.pathKey && (
         <g transform="translate(-10, -35)" onClick={() => handlePruneNode(nodeDatum.pathKey)} style={{ cursor: 'pointer' }}>
           <circle r="10" fill="var(--grupamar-naranja)" stroke="none" strokeWidth="0" />
           <text fill="#fff" stroke="none" strokeWidth="0" x="-4.5" y="4.5" fontSize="14px" fontWeight="bold" style={{ fontFamily: 'Arial, sans-serif' }}>✕</text>
           <title>Podar rama</title>
         </g>
       )}
-      {nodeDatum.isPruned && (
-        <g transform="translate(-10, -35)" onClick={() => handleRestoreNode(nodeDatum.pathKey)} style={{ cursor: 'pointer' }}>
+      {nodeDatum.hasPrunedChildren && (
+        <g transform="translate(15, -35)" onClick={(e) => { e.stopPropagation(); nodeDatum.prunedPaths.forEach(p => handleRestoreNode(p)); }} style={{ cursor: 'pointer' }}>
           <circle r="10" fill="#28a745" stroke="none" strokeWidth="0" />
           <text fill="#fff" stroke="none" strokeWidth="0" x="-5" y="4.5" fontSize="16px" fontWeight="bold" style={{ fontFamily: 'Arial, sans-serif' }}>+</text>
-          <title>Restaurar rama</title>
+          <title>Restaurar nodos eliminados de esta rama</title>
         </g>
       )}
       {nodeAnnotations.map(ann => (
