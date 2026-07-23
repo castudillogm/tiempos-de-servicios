@@ -91,8 +91,10 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
     e.stopPropagation();
     e.preventDefault();
     draggingRef.current = target;
+    let hasMoved = false;
     
     const handlePointerMove = (ev) => {
+      if (Math.abs(ev.movementX) > 0 || Math.abs(ev.movementY) > 0) hasMoved = true;
       setPos(prev => {
         if (draggingRef.current === 'endPoint') {
           return { ...prev, x2: prev.x2 + ev.movementX, y2: prev.y2 + ev.movementY };
@@ -105,11 +107,13 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
       document.removeEventListener('pointermove', handlePointerMove);
       document.removeEventListener('pointerup', handlePointerUp);
       draggingRef.current = null;
-      // Here we could call onUpdate to persist, but local state is fine while mounted.
       setPos(currentPos => {
         onUpdate({ x: currentPos.x, y: currentPos.y, x2: currentPos.x2, y2: currentPos.y2 });
         return currentPos;
       });
+      if (!hasMoved && target === 'main' && annotation.type !== 'arrow') {
+        setIsEditing(true);
+      }
     };
 
     document.addEventListener('pointermove', handlePointerMove);
@@ -128,8 +132,8 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
 
   if (annotation.type === 'square') {
     return (
-      <g transform={`translate(${pos.x}, ${pos.y})`} onDoubleClick={handleDoubleClick}>
-        <rect x="0" y="0" width="100" height="40" fill="#fff" stroke="var(--grupamar-azul-oscuro)" strokeWidth="2" rx="5" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ cursor: 'move' }} />
+      <g transform={`translate(${pos.x}, ${pos.y})`}>
+        <rect x="0" y="0" width="100" height="40" fill="#fff" stroke="var(--grupamar-azul-oscuro)" strokeWidth="2" rx="5" filter="none" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ cursor: 'move' }} />
         {!isEditing ? (
           <text x="50" y="25" textAnchor="middle" fill="#333" stroke="none" strokeWidth="0" pointerEvents="none" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
             {text}
@@ -147,10 +151,10 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
 
   if (annotation.type === 'text') {
     return (
-      <g transform={`translate(${pos.x}, ${pos.y})`} onDoubleClick={handleDoubleClick}>
+      <g transform={`translate(${pos.x}, ${pos.y})`}>
         {!isEditing ? (
           <text x="0" y="0" fill="#333" stroke="none" strokeWidth="0" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ fontSize: '16px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold', cursor: 'move' }}>
-            {text || 'Doble clic para editar'}
+            {text || 'Clic para editar'}
           </text>
         ) : (
           <foreignObject x="0" y="-15" width="150" height="30">
