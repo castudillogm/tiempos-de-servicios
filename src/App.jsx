@@ -81,6 +81,107 @@ const MultiSelectCheckbox = ({ label, options, value, onChange }) => {
   );
 };
 
+const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
+  const [pos, setPos] = useState({ x: annotation.x, y: annotation.y, x2: annotation.x2, y2: annotation.y2 });
+  const [isEditing, setIsEditing] = useState(false);
+  const [text, setText] = useState(annotation.content);
+  const draggingRef = useRef(null);
+
+  const handlePointerDown = (e, target) => {
+    e.stopPropagation();
+    e.preventDefault();
+    draggingRef.current = target;
+    
+    const handlePointerMove = (ev) => {
+      setPos(prev => {
+        if (draggingRef.current === 'endPoint') {
+          return { ...prev, x2: prev.x2 + ev.movementX, y2: prev.y2 + ev.movementY };
+        }
+        return { ...prev, x: prev.x + ev.movementX, y: prev.y + ev.movementY };
+      });
+    };
+
+    const handlePointerUp = () => {
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+      draggingRef.current = null;
+      // Here we could call onUpdate to persist, but local state is fine while mounted.
+      setPos(currentPos => {
+        onUpdate({ x: currentPos.x, y: currentPos.y, x2: currentPos.x2, y2: currentPos.y2 });
+        return currentPos;
+      });
+    };
+
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+  };
+
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+    if (annotation.type !== 'arrow') setIsEditing(true);
+  };
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    onUpdate({ content: text });
+  };
+
+  if (annotation.type === 'square') {
+    return (
+      <g transform={`translate(${pos.x}, ${pos.y})`} onDoubleClick={handleDoubleClick}>
+        <rect x="0" y="0" width="100" height="40" fill="#fff" stroke="var(--grupamar-azul-oscuro)" strokeWidth="2" rx="5" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ cursor: 'move' }} />
+        {!isEditing ? (
+          <text x="50" y="25" textAnchor="middle" fill="#333" pointerEvents="none" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
+            {text}
+          </text>
+        ) : (
+          <foreignObject x="0" y="0" width="100" height="40">
+            <input autoFocus value={text} onChange={e => setText(e.target.value)} onBlur={handleBlur} onPointerDown={e => e.stopPropagation()} style={{ width: '100%', height: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', textAlign: 'center', fontFamily: 'Arial' }} />
+          </foreignObject>
+        )}
+        <circle cx="100" cy="0" r="8" fill="red" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }} />
+        <text x="100" y="4" fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none">✕</text>
+      </g>
+    );
+  }
+
+  if (annotation.type === 'text') {
+    return (
+      <g transform={`translate(${pos.x}, ${pos.y})`} onDoubleClick={handleDoubleClick}>
+        {!isEditing ? (
+          <text x="0" y="0" fill="#333" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ fontSize: '16px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold', cursor: 'move' }}>
+            {text || 'Doble clic para editar'}
+          </text>
+        ) : (
+          <foreignObject x="0" y="-15" width="150" height="30">
+            <input autoFocus value={text} onChange={e => setText(e.target.value)} onBlur={handleBlur} onPointerDown={e => e.stopPropagation()} style={{ width: '100%', height: '100%', boxSizing: 'border-box', border: '1px solid #ccc', background: '#fff', fontFamily: 'Arial' }} />
+          </foreignObject>
+        )}
+        <circle cx="-10" cy="-5" r="8" fill="red" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }} />
+        <text x="-10" y="-1" fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none">✕</text>
+      </g>
+    );
+  }
+
+  if (annotation.type === 'arrow') {
+    return (
+      <g>
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="var(--grupamar-azul-oscuro)" />
+          </marker>
+        </defs>
+        <line x1={pos.x} y1={pos.y} x2={pos.x2} y2={pos.y2} stroke="var(--grupamar-azul-oscuro)" strokeWidth="3" markerEnd="url(#arrowhead)" />
+        <circle cx={pos.x} cy={pos.y} r="8" fill="var(--grupamar-azul-claro)" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ cursor: 'move' }} />
+        <circle cx={pos.x2} cy={pos.y2} r="8" fill="var(--grupamar-naranja)" onPointerDown={(e) => handlePointerDown(e, 'endPoint')} style={{ cursor: 'move' }} />
+        <circle cx={pos.x} cy={pos.y - 15} r="8" fill="red" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }} />
+        <text x={pos.x} y={pos.y - 11} fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none">✕</text>
+      </g>
+    );
+  }
+  return null;
+};
+
 function App() {
   const [hasData, setHasData] = useState(false);
   const [records, setRecords] = useState([]); // Will hold the filtered subset
@@ -95,6 +196,8 @@ function App() {
   const [dynamicColumns, setDynamicColumns] = useState([]);
   const [savedTreesList, setSavedTreesList] = useState([]);
   const [hiddenNodePaths, setHiddenNodePaths] = useState([]);
+  const [annotations, setAnnotations] = useState([]);
+  const [selectedTool, setSelectedTool] = useState(null);
   const initialFixedFilters = [
     { key: 'plazaOrigen', name: 'Plaza Origen', dbKey: 'PlazaOrigen' },
     { key: 'fasePadre', name: 'Fase Padre', dbKey: 'FasePadre' },
@@ -458,17 +561,20 @@ function App() {
          const currentPath = [...parentPath, val];
          const pathKey = currentPath.join('|||');
          
-         if (hiddenNodePaths && hiddenNodePaths.includes(pathKey)) continue;
+         const isPruned = hiddenNodePaths && hiddenNodePaths.includes(pathKey);
 
          const node = { 
             name: val, 
             attributes: { Nivel: currentLevel.name },
-            pathKey 
+            pathKey,
+            isPruned
          };
          
-         const children = buildNodes(levelIndex + 1, currentPath);
-         if (children && children.length > 0) {
-            node.children = children;
+         if (!isPruned) {
+           const children = buildNodes(levelIndex + 1, currentPath);
+           if (children && children.length > 0) {
+              node.children = children;
+           }
          }
          nodes.push(node);
       }
@@ -486,29 +592,81 @@ function App() {
     setHiddenNodePaths(prev => [...prev, pathKey]);
   };
 
-  const renderCustomNodeElement = ({ nodeDatum, toggleNode }) => (
-    <g>
-      <circle r="20" fill="var(--grupamar-azul-claro)" stroke="none" strokeWidth="0" onClick={toggleNode} style={{ cursor: 'pointer' }} />
-      <text fill="#fff" stroke="none" strokeWidth="0" x="-10" y="5" onClick={toggleNode} style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
+  const handleRestoreNode = (pathKey) => {
+    setHiddenNodePaths(prev => prev.filter(p => p !== pathKey));
+  };
+
+  const handleAddAnnotation = (pathKey) => {
+    if (!selectedTool) return;
+    const newId = Date.now().toString();
+    const newAnnotation = {
+      id: newId,
+      pathKey,
+      type: selectedTool,
+      x: 0,
+      y: -60,
+      content: selectedTool === 'text' ? 'Texto' : selectedTool === 'square' ? 'Caja' : '',
+      x2: 100,
+      y2: -60,
+    };
+    setAnnotations(prev => [...prev, newAnnotation]);
+    setSelectedTool(null);
+  };
+
+  const handleUpdateAnnotation = (id, newProps) => {
+    setAnnotations(prev => prev.map(ann => ann.id === id ? { ...ann, ...newProps } : ann));
+  };
+
+  const handleDeleteAnnotation = (id) => {
+    setAnnotations(prev => prev.filter(ann => ann.id !== id));
+  };
+
+  const renderCustomNodeElement = ({ nodeDatum, toggleNode }) => {
+    const handleNodeClick = (e) => {
+      if (selectedTool) {
+        e.stopPropagation();
+        handleAddAnnotation(nodeDatum.pathKey);
+      } else {
+        toggleNode();
+      }
+    };
+
+    const nodeAnnotations = annotations.filter(ann => ann.pathKey === nodeDatum.pathKey);
+
+    return (
+      <g>
+        <circle r="20" fill={nodeDatum.isPruned ? "#ccc" : "var(--grupamar-azul-claro)"} stroke="none" strokeWidth="0" onClick={handleNodeClick} style={{ cursor: selectedTool ? 'crosshair' : 'pointer' }} />
+        <text fill="#fff" stroke="none" strokeWidth="0" x="-10" y="5" onClick={handleNodeClick} style={{ cursor: selectedTool ? 'crosshair' : 'pointer', fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
         {String(nodeDatum.name || '').substring(0, 2).toUpperCase()}
       </text>
-      <text fill="#000" stroke="none" strokeWidth="0" x="25" y="-5" style={{ fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
-        {nodeDatum.name}
+      <text fill={nodeDatum.isPruned ? "#888" : "#000"} stroke="none" strokeWidth="0" x="25" y="-5" style={{ fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
+        {nodeDatum.name} {nodeDatum.isPruned && "(Podado)"}
       </text>
       {nodeDatum.attributes?.Nivel && (
-        <text fill="#000" stroke="none" strokeWidth="0" x="25" y="15" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
+        <text fill={nodeDatum.isPruned ? "#aaa" : "#000"} stroke="none" strokeWidth="0" x="25" y="15" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
           {nodeDatum.attributes.Nivel}
         </text>
       )}
-      {nodeDatum.pathKey && (
+      {nodeDatum.pathKey && !nodeDatum.isPruned && (
         <g transform="translate(-10, -35)" onClick={() => handlePruneNode(nodeDatum.pathKey)} style={{ cursor: 'pointer' }}>
           <circle r="10" fill="var(--grupamar-naranja)" stroke="none" strokeWidth="0" />
           <text fill="#fff" stroke="none" strokeWidth="0" x="-4.5" y="4.5" fontSize="14px" fontWeight="bold" style={{ fontFamily: 'Arial, sans-serif' }}>✕</text>
           <title>Podar rama</title>
         </g>
       )}
+      {nodeDatum.isPruned && (
+        <g transform="translate(-10, -35)" onClick={() => handleRestoreNode(nodeDatum.pathKey)} style={{ cursor: 'pointer' }}>
+          <circle r="10" fill="#28a745" stroke="none" strokeWidth="0" />
+          <text fill="#fff" stroke="none" strokeWidth="0" x="-5" y="4.5" fontSize="16px" fontWeight="bold" style={{ fontFamily: 'Arial, sans-serif' }}>+</text>
+          <title>Restaurar rama</title>
+        </g>
+      )}
+      {nodeAnnotations.map(ann => (
+        <AnnotationNode key={ann.id} annotation={ann} onUpdate={(props) => handleUpdateAnnotation(ann.id, props)} onDelete={() => handleDeleteAnnotation(ann.id)} />
+      ))}
     </g>
   );
+  };
 
   const handleSaveTree = async () => {
     const name = prompt("Introduce un nombre para guardar esta ramificación:");
@@ -897,6 +1055,12 @@ function App() {
                   </button>
                 )}
                 <div style={{ flex: 1, width: '100%', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: '5px', background: '#fff', padding: '5px', borderRadius: '5px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                    <button onClick={() => setSelectedTool(selectedTool === 'square' ? null : 'square')} style={{ padding: '5px 10px', background: selectedTool === 'square' ? 'var(--grupamar-azul-claro)' : '#eee', color: selectedTool === 'square' ? '#fff' : '#333', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🔲 Cuadro</button>
+                    <button onClick={() => setSelectedTool(selectedTool === 'text' ? null : 'text')} style={{ padding: '5px 10px', background: selectedTool === 'text' ? 'var(--grupamar-azul-claro)' : '#eee', color: selectedTool === 'text' ? '#fff' : '#333', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>📝 Texto</button>
+                    <button onClick={() => setSelectedTool(selectedTool === 'arrow' ? null : 'arrow')} style={{ padding: '5px 10px', background: selectedTool === 'arrow' ? 'var(--grupamar-azul-claro)' : '#eee', color: selectedTool === 'arrow' ? '#fff' : '#333', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>↗ Flecha</button>
+                  </div>
+                  {selectedTool && <div style={{ position: 'absolute', top: 50, right: 10, zIndex: 10, background: 'var(--grupamar-naranja)', color: '#fff', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', pointerEvents: 'none' }}>Haz clic en un nodo para añadir</div>}
                   <Tree 
                     data={treeData} 
                     orientation="horizontal"
