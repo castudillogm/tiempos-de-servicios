@@ -448,23 +448,63 @@ function App() {
       return [{ name: 'Filtros Inactivos', attributes: { Info: 'Selecciona al menos un filtro para ver la rama' } }];
     }
 
-    const buildNodes = (levelIndex) => {
+    const buildNodes = (levelIndex, parentPath = []) => {
       if (levelIndex >= activeLevels.length) return undefined;
       const currentLevel = activeLevels[levelIndex];
       const selectedValues = treeFilters[currentLevel.key].split(',');
       
-      return selectedValues.map(val => {
-         const node = { name: val, attributes: { Nivel: currentLevel.name } };
-         const children = buildNodes(levelIndex + 1);
+      const nodes = [];
+      for (const val of selectedValues) {
+         const currentPath = [...parentPath, val];
+         const pathKey = currentPath.join('|||');
+         
+         if (hiddenNodePaths.includes(pathKey)) continue;
+
+         const node = { 
+            name: val, 
+            attributes: { Nivel: currentLevel.name },
+            pathKey 
+         };
+         
+         const children = buildNodes(levelIndex + 1, currentPath);
          if (children && children.length > 0) {
             node.children = children;
          }
-         return node;
-      });
+         nodes.push(node);
+      }
+      return nodes;
     };
 
     return buildNodes(0);
-  }, [treeFilters, filterOrder]);
+  }, [treeFilters, filterOrder, hiddenNodePaths]);
+
+  const handlePruneNode = (pathKey) => {
+    setHiddenNodePaths(prev => [...prev, pathKey]);
+  };
+
+  const renderCustomNodeElement = ({ nodeDatum, toggleNode }) => (
+    <g>
+      <circle r="20" fill="var(--grupamar-azul-oscuro)" onClick={toggleNode} style={{ cursor: 'pointer' }} />
+      <text fill="#fff" strokeWidth="1" x="-10" y="5" onClick={toggleNode} style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+        {nodeDatum.name.substring(0, 2).toUpperCase()}
+      </text>
+      <text fill="#333" strokeWidth="1" x="25" y="-5" style={{ fontWeight: 'bold' }}>
+        {nodeDatum.name}
+      </text>
+      {nodeDatum.attributes?.Nivel && (
+        <text fill="#666" x="25" y="15" fontSize="12px">
+          {nodeDatum.attributes.Nivel}
+        </text>
+      )}
+      {nodeDatum.pathKey && (
+        <g transform="translate(-10, -35)" onClick={() => handlePruneNode(nodeDatum.pathKey)} style={{ cursor: 'pointer' }}>
+          <circle r="10" fill="red" />
+          <text fill="white" x="-4.5" y="4.5" fontSize="14px" fontWeight="bold">✕</text>
+          <title>Podar rama</title>
+        </g>
+      )}
+    </g>
+  );
 
   const handleSaveTree = async () => {
     const name = prompt("Introduce un nombre para guardar esta ramificación:");
@@ -476,6 +516,7 @@ function App() {
         name,
         treeFilters,
         filterOrder,
+        hiddenNodePaths,
         createdAt: new Date()
       });
       alert("Ramificación guardada exitosamente en Firebase!");
@@ -510,6 +551,7 @@ function App() {
   const handleLoadTree = (tree) => {
     setFilterOrder(tree.filterOrder);
     setTreeFilters(tree.treeFilters);
+    setHiddenNodePaths(tree.hiddenNodePaths || []);
     setIsLoading(true);
     updateDependentOptions(tree.treeFilters, dynamicColumns).then(newOpts => {
       if (newOpts) setTreeDbOptions(newOpts);
@@ -845,6 +887,11 @@ function App() {
             <div style={{ display: 'flex', gap: '20px' }}>
               <div className="card" style={{ flex: '3', height: '600px', backgroundColor: '#fdfdfd', border: '2px dashed #ccc', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px', textAlign: 'center' }}>Ramificaciones de Filtros Activos</h3>
+                {hiddenNodePaths.length > 0 && (
+                  <button onClick={() => setHiddenNodePaths([])} style={{ position: 'absolute', top: '15px', left: '15px', padding: '8px 15px', borderRadius: '20px', border: '1px solid var(--grupamar-naranja)', backgroundColor: '#fff', color: 'var(--grupamar-naranja)', cursor: 'pointer', fontWeight: 'bold', zIndex: 10 }}>
+                    ↺ Restaurar {hiddenNodePaths.length} rama(s) podada(s)
+                  </button>
+                )}
                 <div style={{ flex: 1, width: '100%', position: 'relative' }}>
                   <Tree 
                     data={treeData} 
@@ -853,6 +900,7 @@ function App() {
                     translate={{ x: 100, y: 250 }}
                     nodeSize={{ x: 450, y: 100 }}
                     separation={{ siblings: 1.2, nonSiblings: 1.5 }}
+                    renderCustomNodeElement={renderCustomNodeElement}
                   />
                 </div>
               </div>
