@@ -489,14 +489,14 @@ function App() {
   const renderCustomNodeElement = ({ nodeDatum, toggleNode }) => (
     <g>
       <circle r="20" fill="var(--grupamar-azul-claro)" onClick={toggleNode} style={{ cursor: 'pointer' }} />
-      <text fill="#fff" strokeWidth="1" x="-10" y="5" onClick={toggleNode} style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+      <text fill="#fff" x="-10" y="5" onClick={toggleNode} style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
         {String(nodeDatum.name || '').substring(0, 2).toUpperCase()}
       </text>
-      <text fill="#333" strokeWidth="1" x="25" y="-5" style={{ fontWeight: 'bold' }}>
+      <text fill="#333" x="25" y="-5" style={{ fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif' }}>
         {nodeDatum.name}
       </text>
       {nodeDatum.attributes?.Nivel && (
-        <text fill="#666" x="25" y="15" fontSize="12px">
+        <text fill="#666" x="25" y="15" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
           {nodeDatum.attributes.Nivel}
         </text>
       )}
