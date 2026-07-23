@@ -910,7 +910,7 @@ function App() {
               </div>
               
               {/* Panel Lateral: Árboles Guardados */}
-              <div className="card" style={{ flex: '1', height: '600px', overflowY: 'auto', backgroundColor: '#f9f9f9', display: 'flex', flexDirection: 'column' }}>
+              <div className="card" style={{ flex: '0.5', height: '600px', overflowY: 'auto', backgroundColor: '#f9f9f9', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ color: 'var(--grupamar-azul-oscuro)', marginBottom: '15px', textAlign: 'center' }}>Ramificaciones Guardadas</h3>
                 {savedTreesList.length === 0 ? (
                   <p style={{ textAlign: 'center', color: '#888', fontStyle: 'italic', marginTop: '20px' }}>No hay ramificaciones guardadas.</p>
