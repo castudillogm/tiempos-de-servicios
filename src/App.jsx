@@ -94,7 +94,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('ANALISIS');
   const [dynamicColumns, setDynamicColumns] = useState([]);
   const [savedTreesList, setSavedTreesList] = useState([]);
-  
+  const [hiddenNodePaths, setHiddenNodePaths] = useState([]);
   const initialFixedFilters = [
     { key: 'plazaOrigen', name: 'Plaza Origen', dbKey: 'PlazaOrigen' },
     { key: 'fasePadre', name: 'Fase Padre', dbKey: 'FasePadre' },
