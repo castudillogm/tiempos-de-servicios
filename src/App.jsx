@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useEffect, useTransition } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import Tree from 'react-d3-tree';
 import { calculateTukeyStats, fitOLS, calculateGaussianCurve } from './utils/statistics';
 import { defaultFilterState } from './utils/dataProcessing';
 import { loadDataFromFile, loadDataFromURL, executeQuery, getUniqueValuesFromDB, getDynamicColumns } from './utils/duckdb';
@@ -87,6 +88,7 @@ function App() {
   const [googleSheetUrl, setGoogleSheetUrl] = useState("");
   const [gaussPct, setGaussPct] = useState(100);
   const [tempGaussPct, setTempGaussPct] = useState(100);
+  const [activeTab, setActiveTab] = useState('ANALISIS');
   const [dynamicColumns, setDynamicColumns] = useState([]);
   const [pendingColumns, setPendingColumns] = useState(null);
   const [selectedPendingColumns, setSelectedPendingColumns] = useState([]);
@@ -359,6 +361,45 @@ function App() {
     return data;
   }, [records, paretoKeys]);
 
+  const treeData = useMemo(() => {
+    const levels = [
+      { key: 'plazaOrigen', name: 'Plaza Origen' },
+      { key: 'fasePadre', name: 'Fase Padre' },
+      { key: 'fase', name: 'Fase' },
+      { key: 'zonaDestino', name: 'Zona Destino' },
+      { key: 'adr', name: 'ADR' },
+      { key: 'plazaDestino', name: 'Plaza Destino' }
+    ];
+
+    const activeLevels = levels.filter(lvl => filters[lvl.key] && filters[lvl.key] !== 'ALL');
+
+    if (activeLevels.length === 0) {
+      return [{ name: 'Filtros Inactivos', attributes: { Info: 'Selecciona al menos un filtro para ver la rama' } }];
+    }
+
+    const buildNodes = (levelIndex) => {
+      if (levelIndex >= activeLevels.length) return undefined;
+      const currentLevel = activeLevels[levelIndex];
+      const selectedValues = filters[currentLevel.key].split(',');
+      
+      return selectedValues.map(val => {
+         const node = { name: val, attributes: { Nivel: currentLevel.name } };
+         const children = buildNodes(levelIndex + 1);
+         if (children) {
+            node.children = children;
+         }
+         return node;
+      });
+    };
+
+    const rootChildren = buildNodes(0);
+
+    return [{
+       name: 'Filtros',
+       children: rootChildren
+    }];
+  }, [filters]);
+
   return (
     <div style={{ fontFamily: 'var(--font-grupamar)', backgroundColor: '#ffffff', minHeight: '100vh' }}>
       
@@ -482,156 +523,189 @@ function App() {
             </button>
           </div>
 
-          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '20px' }}>
-            {/* Tukey Stats */}
-            <div className="card" style={{ flex: '1 1 300px' }}>
-              <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px' }}>Estadísticas</h3>
-              <p>Total Registros: <b>{stats.Total}</b></p>
-              <p>Limpios: <b>{stats.Limpios}</b> ({stats.PctLimpios}%)</p>
-              <p>Aberrantes: <b>{stats.Aberrantes}</b> ({stats.PctAberrantes}%)</p>
-              <p>Límite Tukey: <b>{stats.LimiteTukey.toFixed(2)} min</b></p>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid var(--grupamar-azul-oscuro)' }}>
+            <button 
+              onClick={() => setActiveTab('ANALISIS')} 
+              style={{ padding: '12px 25px', borderRadius: '10px 10px 0 0', border: 'none', backgroundColor: activeTab === 'ANALISIS' ? 'var(--grupamar-azul-oscuro)' : '#e0e0e0', color: activeTab === 'ANALISIS' ? '#fff' : '#444', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
+            >
+              Módulo de Análisis
+            </button>
+            <button 
+              onClick={() => setActiveTab('RAMAS')} 
+              style={{ padding: '12px 25px', borderRadius: '10px 10px 0 0', border: 'none', backgroundColor: activeTab === 'RAMAS' ? 'var(--grupamar-azul-oscuro)' : '#e0e0e0', color: activeTab === 'RAMAS' ? '#fff' : '#444', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}
+            >
+              Módulo de Ramificaciones
+            </button>
+          </div>
+
+          {activeTab === 'ANALISIS' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                {/* Tukey Stats */}
+                <div className="card" style={{ flex: '1 1 300px' }}>
+                  <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px' }}>Estadísticas</h3>
+                  <p>Total Registros: <b>{stats.Total}</b></p>
+                  <p>Limpios: <b>{stats.Limpios}</b> ({stats.PctLimpios}%)</p>
+                  <p>Aberrantes: <b>{stats.Aberrantes}</b> ({stats.PctAberrantes}%)</p>
+                  <p>Límite Tukey: <b>{stats.LimiteTukey.toFixed(2)} min</b></p>
 
 
-              <hr style={{ margin: '20px 0', border: 'none', borderTop: '1px solid #ddd' }} />
-              <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px' }}>Relación</h3>
-              
-              <div style={{ marginBottom: '10px' }}>
-                <p style={{ margin: '0 0 5px 0' }}><b>Con ADR (SI):</b></p>
-                <p style={{ margin: '0', paddingLeft: '10px' }}>Coef. Correlación (R²): <b>{regressionSi ? (regressionSi.R2 * 100).toFixed(2) + '%' : 'N/A (Faltan datos)'}</b></p>
-                <p style={{ margin: '0', paddingLeft: '10px', color: regressionSi ? (regressionSi.R2 > 0.5 ? 'green' : 'red') : '#888', fontWeight: 'bold' }}>
-                  {regressionSi ? (regressionSi.R2 > 0.5 ? "Sí guarda relación (Fuerte)" : "No guarda relación (Débil)") : "-"}
-                </p>
-              </div>
+                  <hr style={{ margin: '20px 0', border: 'none', borderTop: '1px solid #ddd' }} />
+                  <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px' }}>Relación</h3>
+                  
+                  <div style={{ marginBottom: '10px' }}>
+                    <p style={{ margin: '0 0 5px 0' }}><b>Con ADR (SI):</b></p>
+                    <p style={{ margin: '0', paddingLeft: '10px' }}>Coef. Correlación (R²): <b>{regressionSi ? (regressionSi.R2 * 100).toFixed(2) + '%' : 'N/A (Faltan datos)'}</b></p>
+                    <p style={{ margin: '0', paddingLeft: '10px', color: regressionSi ? (regressionSi.R2 > 0.5 ? 'green' : 'red') : '#888', fontWeight: 'bold' }}>
+                      {regressionSi ? (regressionSi.R2 > 0.5 ? "Sí guarda relación (Fuerte)" : "No guarda relación (Débil)") : "-"}
+                    </p>
+                  </div>
 
-              <div>
-                <p style={{ margin: '0 0 5px 0' }}><b>Sin ADR (NO):</b></p>
-                <p style={{ margin: '0', paddingLeft: '10px' }}>Coef. Correlación (R²): <b>{regressionNo ? (regressionNo.R2 * 100).toFixed(2) + '%' : 'N/A (Faltan datos)'}</b></p>
-                <p style={{ margin: '0', paddingLeft: '10px', color: regressionNo ? (regressionNo.R2 > 0.5 ? 'green' : 'red') : '#888', fontWeight: 'bold' }}>
-                  {regressionNo ? (regressionNo.R2 > 0.5 ? "Sí guarda relación (Fuerte)" : "No guarda relación (Débil)") : "-"}
-                </p>
-              </div>
-            </div>
+                  <div>
+                    <p style={{ margin: '0 0 5px 0' }}><b>Sin ADR (NO):</b></p>
+                    <p style={{ margin: '0', paddingLeft: '10px' }}>Coef. Correlación (R²): <b>{regressionNo ? (regressionNo.R2 * 100).toFixed(2) + '%' : 'N/A (Faltan datos)'}</b></p>
+                    <p style={{ margin: '0', paddingLeft: '10px', color: regressionNo ? (regressionNo.R2 > 0.5 ? 'green' : 'red') : '#888', fontWeight: 'bold' }}>
+                      {regressionNo ? (regressionNo.R2 > 0.5 ? "Sí guarda relación (Fuerte)" : "No guarda relación (Débil)") : "-"}
+                    </p>
+                  </div>
+                </div>
 
-            {/* Middle Panel: Resumen de Tiempos */}
-            <div className="card" style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px', textAlign: 'center' }}>Resumen de Tiempos</h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid var(--grupamar-azul-oscuro)', color: 'var(--grupamar-azul-oscuro)' }}>
-                    <th style={{ padding: '10px 20px' }}>Nivel</th>
-                    <th style={{ padding: '10px 20px' }}>Mejor de los casos</th>
-                    <th style={{ padding: '10px 20px' }}>Casos comunes</th>
-                    <th style={{ padding: '10px 20px' }}>Peor de los casos</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {statsPorFase.length > 1 && (
-                    <tr style={{ backgroundColor: '#e6f7ff', borderBottom: '2px solid #ccc' }}>
-                      <td style={{ padding: '20px 10px', fontWeight: 'bold', fontSize: '18px', color: 'var(--grupamar-azul-oscuro)' }}>General</td>
-                      <td style={{ padding: '20px 10px', color: 'green', fontWeight: 'bold', fontSize: '20px' }}>{stats.Q1.toFixed(2)} <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>min</span></td>
-                      <td style={{ padding: '20px 10px', color: 'var(--grupamar-naranja)', fontWeight: 'bold', fontSize: '20px' }}>{stats.Mediana.toFixed(2)} <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>min</span></td>
-                      <td style={{ padding: '20px 10px', color: 'red', fontWeight: 'bold', fontSize: '20px' }}>{stats.MaxLimpio.toFixed(2)} <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>min</span></td>
-                    </tr>
-                  )}
-                  {statsPorFase.map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '12px 10px', textAlign: 'left', paddingLeft: '20px' }}>
-                        <div style={{ fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)', fontSize: '14px' }}>{item.fase}</div>
-                      </td>
-                      <td style={{ padding: '12px 10px', color: 'green', fontWeight: 'bold', fontSize: '16px' }}>{item.stats.Q1.toFixed(2)} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
-                      <td style={{ padding: '12px 10px', color: 'var(--grupamar-naranja)', fontWeight: 'bold', fontSize: '16px' }}>{item.stats.Mediana.toFixed(2)} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
-                      <td style={{ padding: '12px 10px', color: 'red', fontWeight: 'bold', fontSize: '16px' }}>{item.stats.MaxLimpio.toFixed(2)} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                {/* Middle Panel: Resumen de Tiempos */}
+                <div className="card" style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px', textAlign: 'center' }}>Resumen de Tiempos</h3>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid var(--grupamar-azul-oscuro)', color: 'var(--grupamar-azul-oscuro)' }}>
+                        <th style={{ padding: '10px 20px' }}>Nivel</th>
+                        <th style={{ padding: '10px 20px' }}>Mejor de los casos</th>
+                        <th style={{ padding: '10px 20px' }}>Casos comunes</th>
+                        <th style={{ padding: '10px 20px' }}>Peor de los casos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {statsPorFase.length > 1 && (
+                        <tr style={{ backgroundColor: '#e6f7ff', borderBottom: '2px solid #ccc' }}>
+                          <td style={{ padding: '20px 10px', fontWeight: 'bold', fontSize: '18px', color: 'var(--grupamar-azul-oscuro)' }}>General</td>
+                          <td style={{ padding: '20px 10px', color: 'green', fontWeight: 'bold', fontSize: '20px' }}>{stats.Q1.toFixed(2)} <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>min</span></td>
+                          <td style={{ padding: '20px 10px', color: 'var(--grupamar-naranja)', fontWeight: 'bold', fontSize: '20px' }}>{stats.Mediana.toFixed(2)} <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>min</span></td>
+                          <td style={{ padding: '20px 10px', color: 'red', fontWeight: 'bold', fontSize: '20px' }}>{stats.MaxLimpio.toFixed(2)} <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal' }}>min</span></td>
+                        </tr>
+                      )}
+                      {statsPorFase.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '12px 10px', textAlign: 'left', paddingLeft: '20px' }}>
+                            <div style={{ fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)', fontSize: '14px' }}>{item.fase}</div>
+                          </td>
+                          <td style={{ padding: '12px 10px', color: 'green', fontWeight: 'bold', fontSize: '16px' }}>{item.stats.Q1.toFixed(2)} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
+                          <td style={{ padding: '12px 10px', color: 'var(--grupamar-naranja)', fontWeight: 'bold', fontSize: '16px' }}>{item.stats.Mediana.toFixed(2)} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
+                          <td style={{ padding: '12px 10px', color: 'red', fontWeight: 'bold', fontSize: '16px' }}>{item.stats.MaxLimpio.toFixed(2)} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-            {/* Histogram Chart */}
-            <div className="card" style={{ flex: '2 1 500px' }}>
-              <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '5px' }}>Histograma de Expediciones por Partidas</h3>
-              <p style={{ fontSize: '14px', marginBottom: '15px', color: '#666' }}>
-                Muestra la cantidad de expediciones reales. El filtro sombrea los N números de partidas más frecuentes que en conjunto suman el {gaussPct}% de todas tus expediciones (Filtro Pareto).
-              </p>
-              
-              <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <span style={{ fontWeight: 'bold' }}>Filtro de porcentaje:</span>
-                <input 
-                  type="range" 
-                  min="1" 
-                  max="100" 
-                  value={tempGaussPct} 
-                  onChange={(e) => setTempGaussPct(Number(e.target.value))} 
-                  onPointerUp={(e) => setGaussPct(Number(e.target.value))}
-                  style={{ flex: '1' }}
-                />
-                <input 
-                  type="number" 
-                  min="1" 
-                  max="100" 
-                  value={tempGaussPct} 
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setTempGaussPct(val);
-                    startTransition(() => {
-                      setGaussPct(val);
-                    });
-                  }} 
-                  style={{ width: '60px', padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)', textAlign: 'center' }}
-                />
-                <span style={{ fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)' }}>%</span>
-              </div>
-
-              <div style={{ width: '100%', height: '300px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={histogramData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="x" name="Partidas" />
-                    <YAxis dataKey="y" name="Expediciones" />
-                    <RechartsTooltip 
-                      formatter={(value, name, props) => {
-                        if (name === "yFiltered") return [value, "Expediciones (Selección Pareto)"];
-                        if (name === "y") return [value, "Expediciones (Total)"];
-                        return [value, name];
-                      }}
-                      labelFormatter={(label) => `Partidas: ${label}`}
+                {/* Histogram Chart */}
+                <div className="card" style={{ flex: '2 1 500px' }}>
+                  <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '5px' }}>Histograma de Expediciones por Partidas</h3>
+                  <p style={{ fontSize: '14px', marginBottom: '15px', color: '#666' }}>
+                    Muestra la cantidad de expediciones reales. El filtro sombrea los N números de partidas más frecuentes que en conjunto suman el {gaussPct}% de todas tus expediciones (Filtro Pareto).
+                  </p>
+                  
+                  <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <span style={{ fontWeight: 'bold' }}>Filtro de porcentaje:</span>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="100" 
+                      value={tempGaussPct} 
+                      onChange={(e) => setTempGaussPct(Number(e.target.value))} 
+                      onPointerUp={(e) => setGaussPct(Number(e.target.value))}
+                      style={{ flex: '1' }}
                     />
-                    <Area type="monotone" dataKey="y" stroke="#ccc" fill="#eee" fillOpacity={0.5} isAnimationActive={false} />
-                    <Area type="monotone" dataKey="yFiltered" stroke="var(--grupamar-azul-oscuro)" fill="var(--grupamar-azul-claro)" fillOpacity={0.8} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max="100" 
+                      value={tempGaussPct} 
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setTempGaussPct(val);
+                        startTransition(() => {
+                          setGaussPct(val);
+                        });
+                      }} 
+                      style={{ width: '60px', padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)', textAlign: 'center' }}
+                    />
+                    <span style={{ fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)' }}>%</span>
+                  </div>
+
+                  <div style={{ width: '100%', height: '300px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={histogramData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="x" name="Partidas" />
+                        <YAxis dataKey="y" name="Expediciones" />
+                        <RechartsTooltip 
+                          formatter={(value, name, props) => {
+                            if (name === "yFiltered") return [value, "Expediciones (Selección Pareto)"];
+                            if (name === "y") return [value, "Expediciones (Total)"];
+                            return [value, name];
+                          }}
+                          labelFormatter={(label) => `Partidas: ${label}`}
+                        />
+                        <Area type="monotone" dataKey="y" stroke="#ccc" fill="#eee" fillOpacity={0.5} isAnimationActive={false} />
+                        <Area type="monotone" dataKey="yFiltered" stroke="var(--grupamar-azul-oscuro)" fill="var(--grupamar-azul-claro)" fillOpacity={0.8} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table Partidas vs Tiempo */}
+              <div className="card">
+                <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px', textAlign: 'center' }}>Tiempos por Cantidad de Partidas</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--grupamar-azul-oscuro)', color: 'var(--grupamar-azul-oscuro)' }}>
+                      <th style={{ padding: '10px' }}>Partidas</th>
+                      <th style={{ padding: '10px' }}>Expediciones</th>
+                      <th style={{ padding: '10px' }}>Mejor de los casos</th>
+                      <th style={{ padding: '10px' }}>Casos comunes</th>
+                      <th style={{ padding: '10px' }}>Peor de los casos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partidasData.map((row, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #ccc' }}>
+                        <td style={{ padding: '10px' }}><b>{row.partidas}</b></td>
+                        <td style={{ padding: '10px' }}>{row.expediciones}</td>
+                        <td style={{ padding: '10px', color: 'green', fontWeight: 'bold' }}>{row.mejor} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
+                        <td style={{ padding: '10px', color: 'var(--grupamar-naranja)', fontWeight: 'bold' }}>{row.tiempoMedio} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
+                        <td style={{ padding: '10px', color: 'red', fontWeight: 'bold' }}>{row.peor} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-          </div>
+          )}
 
-          <div style={{ display: 'flex', gap: '20px', flexDirection: 'column' }}>
-            {/* Table Partidas vs Tiempo */}
-            <div className="card">
-              <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px', textAlign: 'center' }}>Tiempos por Cantidad de Partidas</h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid var(--grupamar-azul-oscuro)', color: 'var(--grupamar-azul-oscuro)' }}>
-                    <th style={{ padding: '10px' }}>Partidas</th>
-                    <th style={{ padding: '10px' }}>Expediciones</th>
-                    <th style={{ padding: '10px' }}>Mejor de los casos</th>
-                    <th style={{ padding: '10px' }}>Casos comunes</th>
-                    <th style={{ padding: '10px' }}>Peor de los casos</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {partidasData.map((row, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #ccc' }}>
-                      <td style={{ padding: '10px' }}><b>{row.partidas}</b></td>
-                      <td style={{ padding: '10px' }}>{row.expediciones}</td>
-                      <td style={{ padding: '10px', color: 'green', fontWeight: 'bold' }}>{row.mejor} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
-                      <td style={{ padding: '10px', color: 'var(--grupamar-naranja)', fontWeight: 'bold' }}>{row.tiempoMedio} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
-                      <td style={{ padding: '10px', color: 'red', fontWeight: 'bold' }}>{row.peor} <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>min</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {activeTab === 'RAMAS' && (
+            <div className="card" style={{ height: '600px', backgroundColor: '#fdfdfd', border: '2px dashed #ccc', display: 'flex', flexDirection: 'column' }}>
+              <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px', textAlign: 'center' }}>Ramificaciones de Filtros Activos</h3>
+              <div style={{ flex: 1, width: '100%', position: 'relative' }}>
+                <Tree 
+                  data={treeData} 
+                  orientation="horizontal"
+                  pathFunc="step"
+                  translate={{ x: 100, y: 250 }}
+                  nodeSize={{ x: 300, y: 100 }}
+                  separation={{ siblings: 1.5, nonSiblings: 2 }}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
       </div>
