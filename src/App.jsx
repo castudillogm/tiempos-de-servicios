@@ -4,6 +4,8 @@ import Tree from 'react-d3-tree';
 import { calculateTukeyStats, fitOLS, calculateGaussianCurve } from './utils/statistics';
 import { defaultFilterState } from './utils/dataProcessing';
 import { loadDataFromFile, loadDataFromURL, executeQuery, getUniqueValuesFromDB, getDynamicColumns } from './utils/duckdb';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from './utils/firebase';
 
 const MultiSelectCheckbox = ({ label, options, value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,7 +17,29 @@ const MultiSelectCheckbox = ({ label, options, value, onChange }) => {
       if (ref.current && !ref.current.contains(event.target)) setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+  
+  const handleSaveTree = async () => {
+    const name = prompt("Introduce un nombre para guardar esta ramificación:");
+    if (!name) return;
+    
+    try {
+      setIsLoading(true);
+      await addDoc(collection(db, "savedTrees"), {
+        name,
+        treeFilters,
+        filterOrder,
+        createdAt: new Date()
+      });
+      alert("Ramificación guardada exitosamente en Firebase!");
+    } catch (e) {
+      console.error("Error guardando ramificación: ", e);
+      alert("Hubo un error al guardar.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const toggleOption = (opt) => {
@@ -32,6 +56,28 @@ const MultiSelectCheckbox = ({ label, options, value, onChange }) => {
     onChange(newArr.length > 0 ? newArr.join(',') : 'ALL');
   };
 
+
+  const handleSaveTree = async () => {
+    const name = prompt("Introduce un nombre para guardar esta ramificación:");
+    if (!name) return;
+    
+    try {
+      setIsLoading(true);
+      await addDoc(collection(db, "savedTrees"), {
+        name,
+        treeFilters,
+        filterOrder,
+        createdAt: new Date()
+      });
+      alert("Ramificación guardada exitosamente en Firebase!");
+    } catch (e) {
+      console.error("Error guardando ramificación: ", e);
+      alert("Hubo un error al guardar.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   return (
     <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: '5px', position: 'relative', minWidth: '160px' }}>
       <label style={{ fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)', fontSize: '13px' }}>{label}</label>
@@ -82,7 +128,8 @@ const MultiSelectCheckbox = ({ label, options, value, onChange }) => {
 function App() {
   const [hasData, setHasData] = useState(false);
   const [records, setRecords] = useState([]); // Will hold the filtered subset
-  const [filters, setFilters] = useState(defaultFilterState);
+  const [analysisFilters, setAnalysisFilters] = useState(defaultFilterState);
+  const [treeFilters, setTreeFilters] = useState(defaultFilterState);
   const [isPending, startTransition] = useTransition();
   const [isLoading, setIsLoading] = useState(false);
   const [googleSheetUrl, setGoogleSheetUrl] = useState("");
@@ -145,7 +192,10 @@ function App() {
   const [pendingColumns, setPendingColumns] = useState(null);
   const [selectedPendingColumns, setSelectedPendingColumns] = useState([]);
   
-  const [dbOptions, setDbOptions] = useState({
+  const [analysisDbOptions, setAnalysisDbOptions] = useState({
+    FasePadre: [], Fase: [], PlazaOrigen: [], PlazaDestino: [], ZonaDestino: [], Dia: [], ADR: []
+  });
+  const [treeDbOptions, setTreeDbOptions] = useState({
     FasePadre: [], Fase: [], PlazaOrigen: [], PlazaDestino: [], ZonaDestino: [], Dia: [], ADR: []
   });
 
@@ -208,7 +258,29 @@ function App() {
       dia.sort((a, b) => {
         const ia = diasSemana.indexOf(a);
         const ib = diasSemana.indexOf(b);
-        return (ia > -1 ? ia : 99) - (ib > -1 ? ib : 99);
+      
+  const handleSaveTree = async () => {
+    const name = prompt("Introduce un nombre para guardar esta ramificación:");
+    if (!name) return;
+    
+    try {
+      setIsLoading(true);
+      await addDoc(collection(db, "savedTrees"), {
+        name,
+        treeFilters,
+        filterOrder,
+        createdAt: new Date()
+      });
+      alert("Ramificación guardada exitosamente en Firebase!");
+    } catch (e) {
+      console.error("Error guardando ramificación: ", e);
+      alert("Hubo un error al guardar.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  return (ia > -1 ? ia : 99) - (ib > -1 ? ib : 99);
       });
 
       const newDbOptions = { FasePadre: fasePadre, Fase: fase, PlazaOrigen: plazaOrigen, PlazaDestino: plazaDestino, ZonaDestino: zonaDestino, Dia: dia, ADR: adr };
@@ -216,9 +288,10 @@ function App() {
          newDbOptions[col] = dynResults[idx];
       });
 
-      setDbOptions(newDbOptions);
+      return newDbOptions;
     } catch (e) {
       console.error("Error fetching options", e);
+      return null;
     }
   };
 
@@ -230,7 +303,8 @@ function App() {
     try {
       const result = await executeQuery(query);
       setRecords(result);
-      await updateDependentOptions(currentFilters, dynCols);
+      const newDbOptions = await updateDependentOptions(currentFilters, dynCols);
+      if (newDbOptions) setAnalysisDbOptions(newDbOptions);
     } catch (e) {
       console.error(e);
       alert("Error ejecutando filtro SQL");
@@ -255,8 +329,11 @@ function App() {
         setDynamicColumns([]);
         const initialFilters = { ...defaultFilterState };
         setHasData(true);
-        setFilters(initialFilters);
+        setAnalysisFilters(initialFilters);
+        setTreeFilters(initialFilters);
         await executeFilteredQuery(initialFilters, []);
+        const newTreeOpts = await updateDependentOptions(initialFilters, []);
+        if (newTreeOpts) setTreeDbOptions(newTreeOpts);
       }
     } catch (err) {
       alert(`Error procesando archivo: ${err.message}`);
@@ -279,8 +356,11 @@ function App() {
         setDynamicColumns([]);
         const initialFilters = { ...defaultFilterState };
         setHasData(true);
-        setFilters(initialFilters);
+        setAnalysisFilters(initialFilters);
+        setTreeFilters(initialFilters);
         await executeFilteredQuery(initialFilters, []);
+        const newTreeOpts = await updateDependentOptions(initialFilters, []);
+        if (newTreeOpts) setTreeDbOptions(newTreeOpts);
       }
     } catch (err) {
       alert(`Error obteniendo datos: ${err.message}`);
@@ -295,18 +375,31 @@ function App() {
     selectedPendingColumns.forEach(col => initialFilters[col] = 'ALL');
     
     setHasData(true);
-    setFilters(initialFilters);
+    setAnalysisFilters(initialFilters);
+    setTreeFilters(initialFilters);
     await executeFilteredQuery(initialFilters, selectedPendingColumns);
+    const newTreeOpts = await updateDependentOptions(initialFilters, selectedPendingColumns);
+    if (newTreeOpts) setTreeDbOptions(newTreeOpts);
     setPendingColumns(null);
   };
 
   const handleFilterChange = (key, val) => {
-    const newFilters = { ...filters, [key]: val };
-    setFilters(newFilters);
-    
-    startTransition(() => {
-      executeFilteredQuery(newFilters);
-    });
+    if (activeTab === 'ANALISIS') {
+      const newFilters = { ...analysisFilters, [key]: val };
+      setAnalysisFilters(newFilters);
+      startTransition(() => {
+        executeFilteredQuery(newFilters);
+      });
+    } else {
+      const newFilters = { ...treeFilters, [key]: val };
+      setTreeFilters(newFilters);
+      startTransition(async () => {
+        setIsLoading(true);
+        const newDbOptions = await updateDependentOptions(newFilters, dynamicColumns);
+        if (newDbOptions) setTreeDbOptions(newDbOptions);
+        setIsLoading(false);
+      });
+    }
   };
 
   // Pareto Keys calculation (Top N%)
@@ -414,7 +507,7 @@ function App() {
   }, [records, paretoKeys]);
 
   const treeData = useMemo(() => {
-    const activeLevels = filterOrder.filter(lvl => filters[lvl.key] && filters[lvl.key] !== 'ALL');
+    const activeLevels = filterOrder.filter(lvl => treeFilters[lvl.key] && treeFilters[lvl.key] !== 'ALL');
 
     if (activeLevels.length === 0) {
       return [{ name: 'Filtros Inactivos', attributes: { Info: 'Selecciona al menos un filtro para ver la rama' } }];
@@ -423,7 +516,7 @@ function App() {
     const buildNodes = (levelIndex) => {
       if (levelIndex >= activeLevels.length) return undefined;
       const currentLevel = activeLevels[levelIndex];
-      const selectedValues = filters[currentLevel.key].split(',');
+      const selectedValues = treeFilters[currentLevel.key].split(',');
       
       return selectedValues.map(val => {
          const node = { name: val, attributes: { Nivel: currentLevel.name } };
@@ -436,8 +529,30 @@ function App() {
     };
 
     return buildNodes(0);
-  }, [filters, filterOrder]);
+  }, [treeFilters, filterOrder]);
 
+
+  const handleSaveTree = async () => {
+    const name = prompt("Introduce un nombre para guardar esta ramificación:");
+    if (!name) return;
+    
+    try {
+      setIsLoading(true);
+      await addDoc(collection(db, "savedTrees"), {
+        name,
+        treeFilters,
+        filterOrder,
+        createdAt: new Date()
+      });
+      alert("Ramificación guardada exitosamente en Firebase!");
+    } catch (e) {
+      console.error("Error guardando ramificación: ", e);
+      alert("Hubo un error al guardar.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   return (
     <div style={{ fontFamily: 'var(--font-grupamar)', backgroundColor: '#ffffff', minHeight: '100vh' }}>
       
@@ -535,8 +650,8 @@ function App() {
               >
                 <MultiSelectCheckbox 
                   label={`${fItem.name}:`} 
-                  options={dbOptions[fItem.dbKey] || []} 
-                  value={filters[fItem.key] || 'ALL'} 
+                  options={(activeTab === 'ANALISIS' ? analysisDbOptions : treeDbOptions)[fItem.dbKey] || []} 
+                  value={(activeTab === 'ANALISIS' ? analysisFilters : treeFilters)[fItem.key] || 'ALL'} 
                   onChange={(val) => handleFilterChange(fItem.key, val)} 
                 />
               </div>
