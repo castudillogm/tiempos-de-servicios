@@ -4,7 +4,7 @@ import Tree from 'react-d3-tree';
 import { calculateTukeyStats, fitOLS, calculateGaussianCurve } from './utils/statistics';
 import { defaultFilterState } from './utils/dataProcessing';
 import { loadDataFromFile, loadDataFromURL, executeQuery, getUniqueValuesFromDB, getDynamicColumns } from './utils/duckdb';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './utils/firebase';
 
 const MultiSelectCheckbox = ({ label, options, value, onChange }) => {
@@ -93,6 +93,7 @@ function App() {
   const [tempGaussPct, setTempGaussPct] = useState(100);
   const [activeTab, setActiveTab] = useState('ANALISIS');
   const [dynamicColumns, setDynamicColumns] = useState([]);
+  const [savedTreesList, setSavedTreesList] = useState([]);
   
   const initialFixedFilters = [
     { key: 'plazaOrigen', name: 'Plaza Origen', dbKey: 'PlazaOrigen' },
@@ -483,6 +484,51 @@ function App() {
       alert("Hubo un error al guardar.");
     } finally {
       setIsLoading(false);
+      fetchSavedTrees();
+    }
+  };
+
+  const fetchSavedTrees = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "savedTrees"));
+      const trees = [];
+      querySnapshot.forEach((doc) => {
+        trees.push({ id: doc.id, ...doc.data() });
+      });
+      setSavedTreesList(trees.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
+    } catch (e) {
+      console.error("Error fetching saved trees", e);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'RAMIFICACIONES') {
+      fetchSavedTrees();
+    }
+  }, [activeTab]);
+
+  const handleLoadTree = (tree) => {
+    setFilterOrder(tree.filterOrder);
+    setTreeFilters(tree.treeFilters);
+    setIsLoading(true);
+    updateDependentOptions(tree.treeFilters, dynamicColumns).then(newOpts => {
+      if (newOpts) setTreeDbOptions(newOpts);
+      setIsLoading(false);
+    });
+  };
+
+  const handleDeleteTree = async (id) => {
+    if (!confirm("¿Seguro que deseas eliminar esta ramificación?")) return;
+    try {
+      setIsLoading(true);
+      await deleteDoc(doc(db, "savedTrees", id));
+      await fetchSavedTrees();
+      alert("Ramificación eliminada.");
+    } catch (e) {
+      console.error("Error eliminando: ", e);
+      alert("Hubo un error al eliminar.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -796,17 +842,51 @@ function App() {
           )}
 
           {activeTab === 'RAMIFICACIONES' && (
-            <div className="card" style={{ height: '600px', backgroundColor: '#fdfdfd', border: '2px dashed #ccc', display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px', textAlign: 'center' }}>Ramificaciones de Filtros Activos</h3>
-              <div style={{ flex: 1, width: '100%', position: 'relative' }}>
-                <Tree 
-                  data={treeData} 
-                  orientation="horizontal"
-                  pathFunc="step"
-                  translate={{ x: 100, y: 250 }}
-                  nodeSize={{ x: 450, y: 100 }}
-                  separation={{ siblings: 1.2, nonSiblings: 1.5 }}
-                />
+            <div style={{ display: 'flex', gap: '20px' }}>
+              <div className="card" style={{ flex: '3', height: '600px', backgroundColor: '#fdfdfd', border: '2px dashed #ccc', display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px', textAlign: 'center' }}>Ramificaciones de Filtros Activos</h3>
+                <div style={{ flex: 1, width: '100%', position: 'relative' }}>
+                  <Tree 
+                    data={treeData} 
+                    orientation="horizontal"
+                    pathFunc="step"
+                    translate={{ x: 100, y: 250 }}
+                    nodeSize={{ x: 450, y: 100 }}
+                    separation={{ siblings: 1.2, nonSiblings: 1.5 }}
+                  />
+                </div>
+              </div>
+              
+              {/* Panel Lateral: Árboles Guardados */}
+              <div className="card" style={{ flex: '1', height: '600px', overflowY: 'auto', backgroundColor: '#f9f9f9', display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ color: 'var(--grupamar-azul-oscuro)', marginBottom: '15px', textAlign: 'center' }}>Ramificaciones Guardadas</h3>
+                {savedTreesList.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: '#888', fontStyle: 'italic', marginTop: '20px' }}>No hay ramificaciones guardadas.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {savedTreesList.map((tree) => (
+                      <div key={tree.id} style={{ backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '10px', padding: '15px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', position: 'relative' }}>
+                        <button 
+                          onClick={() => handleDeleteTree(tree.id)} 
+                          style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', color: 'red', cursor: 'pointer', fontSize: '16px' }}
+                          title="Eliminar Ramificación"
+                        >
+                          ✕
+                        </button>
+                        <h4 style={{ margin: '0 0 5px 0', color: 'var(--grupamar-azul-claro)', paddingRight: '20px' }}>{tree.name}</h4>
+                        <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#888' }}>
+                          {tree.createdAt ? new Date(tree.createdAt.toMillis()).toLocaleString() : 'Sin fecha'}
+                        </p>
+                        <button 
+                          onClick={() => handleLoadTree(tree)}
+                          style={{ width: '100%', padding: '8px', backgroundColor: 'var(--grupamar-naranja)', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+                        >
+                          Cargar Ramificación
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
