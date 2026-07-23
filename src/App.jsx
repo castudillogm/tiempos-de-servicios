@@ -585,6 +585,14 @@ function App() {
     if (!builtTree || builtTree.length === 0) {
       return [{ name: 'Vacío', attributes: { Info: 'Todas las ramas han sido podadas.' } }];
     }
+    if (builtTree.length > 1) {
+      return [{
+        name: 'Inicio',
+        attributes: { Nivel: 'Origen' },
+        pathKey: 'Inicio',
+        children: builtTree
+      }];
+    }
     return builtTree;
   }, [treeFilters, filterOrder, hiddenNodePaths]);
 
