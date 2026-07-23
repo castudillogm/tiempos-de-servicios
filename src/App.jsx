@@ -458,7 +458,7 @@ function App() {
          const currentPath = [...parentPath, val];
          const pathKey = currentPath.join('|||');
          
-         if (hiddenNodePaths.includes(pathKey)) continue;
+         if (hiddenNodePaths && hiddenNodePaths.includes(pathKey)) continue;
 
          const node = { 
             name: val, 
@@ -475,7 +475,11 @@ function App() {
       return nodes;
     };
 
-    return buildNodes(0);
+    const builtTree = buildNodes(0);
+    if (!builtTree || builtTree.length === 0) {
+      return [{ name: 'Vacío', attributes: { Info: 'Todas las ramas han sido podadas.' } }];
+    }
+    return builtTree;
   }, [treeFilters, filterOrder, hiddenNodePaths]);
 
   const handlePruneNode = (pathKey) => {
@@ -486,7 +490,7 @@ function App() {
     <g>
       <circle r="20" fill="var(--grupamar-azul-oscuro)" onClick={toggleNode} style={{ cursor: 'pointer' }} />
       <text fill="#fff" strokeWidth="1" x="-10" y="5" onClick={toggleNode} style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
-        {nodeDatum.name.substring(0, 2).toUpperCase()}
+        {String(nodeDatum.name || '').substring(0, 2).toUpperCase()}
       </text>
       <text fill="#333" strokeWidth="1" x="25" y="-5" style={{ fontWeight: 'bold' }}>
         {nodeDatum.name}
