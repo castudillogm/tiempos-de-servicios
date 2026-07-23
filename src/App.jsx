@@ -488,7 +488,7 @@ function App() {
 
   const renderCustomNodeElement = ({ nodeDatum, toggleNode }) => (
     <g>
-      <circle r="20" fill="var(--grupamar-azul-oscuro)" onClick={toggleNode} style={{ cursor: 'pointer' }} />
+      <circle r="20" fill="var(--grupamar-azul-claro)" onClick={toggleNode} style={{ cursor: 'pointer' }} />
       <text fill="#fff" strokeWidth="1" x="-10" y="5" onClick={toggleNode} style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
         {String(nodeDatum.name || '').substring(0, 2).toUpperCase()}
       </text>
@@ -502,8 +502,8 @@ function App() {
       )}
       {nodeDatum.pathKey && (
         <g transform="translate(-10, -35)" onClick={() => handlePruneNode(nodeDatum.pathKey)} style={{ cursor: 'pointer' }}>
-          <circle r="10" fill="red" />
-          <text fill="white" x="-4.5" y="4.5" fontSize="14px" fontWeight="bold">✕</text>
+          <circle r="10" fill="var(--grupamar-naranja)" />
+          <text fill="#fff" x="-4.5" y="4.5" fontSize="14px" fontWeight="bold">✕</text>
           <title>Podar rama</title>
         </g>
       )}
