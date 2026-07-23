@@ -587,9 +587,9 @@ function App() {
     }
     if (builtTree.length > 1) {
       return [{
-        name: 'Inicio',
+        name: 'invisible_root',
         attributes: { Nivel: 'Origen' },
-        pathKey: 'Inicio',
+        pathKey: 'invisible_root',
         children: builtTree
       }];
     }
@@ -640,6 +640,10 @@ function App() {
     };
 
     const nodeAnnotations = annotations.filter(ann => ann.pathKey === nodeDatum.pathKey);
+
+    if (nodeDatum.pathKey === 'invisible_root') {
+      return <g />;
+    }
 
     return (
       <g>
@@ -1073,7 +1077,8 @@ function App() {
                     data={treeData} 
                     orientation="horizontal"
                     pathFunc="step"
-                    translate={{ x: 100, y: 250 }}
+                    pathClassFunc={(link) => link.source.data.pathKey === 'invisible_root' ? 'hidden-link' : ''}
+                    translate={{ x: treeData[0]?.pathKey === 'invisible_root' ? -350 : 100, y: 250 }}
                     nodeSize={{ x: 450, y: 100 }}
                     separation={{ siblings: 1.2, nonSiblings: 1.5 }}
                     renderCustomNodeElement={renderCustomNodeElement}

@@ -85,3 +85,9 @@ input:focus, select:focus {
   padding: 20px;
   box-shadow: var(--shadow);
 }
+
+.hidden-link {
+  display: none !important;
+  stroke-opacity: 0 !important;
+  stroke: transparent !important;
+}
