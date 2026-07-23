@@ -443,9 +443,9 @@ function App() {
         <>
           {/* Filters Area */}
           <div className="card" style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '20px', backgroundColor: 'var(--grupamar-gris-claro)', border: 'none', alignItems: 'flex-end', position: 'relative' }}>
+            <MultiSelectCheckbox label="Plaza Origen:" options={dbOptions.PlazaOrigen} value={filters.plazaOrigen} onChange={(val) => handleFilterChange('plazaOrigen', val)} />
             <MultiSelectCheckbox label="Fase Padre:" options={dbOptions.FasePadre} value={filters.fasePadre} onChange={(val) => handleFilterChange('fasePadre', val)} />
             <MultiSelectCheckbox label="Fase:" options={dbOptions.Fase} value={filters.fase} onChange={(val) => handleFilterChange('fase', val)} />
-            <MultiSelectCheckbox label="Plaza Origen:" options={dbOptions.PlazaOrigen} value={filters.plazaOrigen} onChange={(val) => handleFilterChange('plazaOrigen', val)} />
             <MultiSelectCheckbox label="Plaza Destino:" options={dbOptions.PlazaDestino} value={filters.plazaDestino} onChange={(val) => handleFilterChange('plazaDestino', val)} />
             <MultiSelectCheckbox label="Zona Destino:" options={dbOptions.ZonaDestino} value={filters.zonaDestino} onChange={(val) => handleFilterChange('zonaDestino', val)} />
             <MultiSelectCheckbox label="Día Expedición:" options={dbOptions.Dia} value={filters.dia} onChange={(val) => handleFilterChange('dia', val)} />

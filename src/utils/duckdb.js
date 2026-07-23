@@ -51,12 +51,13 @@ async function processAndCreateSQLTable(conn, fileName, tableName) {
     const colFase = getCol(['fase']);
     const colADR = getCol(['adr']);
     const colFechaExpedicion = getCol(['fechaexpedicion']);
+    const colFechaRealInicio = getCol(['fecharealinicio']);
     const colCompleto = getCol(['completo']);
     const colCodigo = getCol(['codigo']);
     const colNumPartidas = getCol(['numpartidas']);
     const colDuracionMinutos = getCol(['duracionminutos']);
 
-    const usedCols = [colOrigen, colDestino, colFasePadre, colFase, colADR, colFechaExpedicion, colCompleto, colCodigo, colNumPartidas, colDuracionMinutos].map(c => c.toLowerCase());
+    const usedCols = [colOrigen, colDestino, colFasePadre, colFase, colADR, colFechaExpedicion, colFechaRealInicio, colCompleto, colCodigo, colNumPartidas, colDuracionMinutos].map(c => c.toLowerCase());
     const extraCols = columns.filter(c => !usedCols.includes(c) && c !== "''");
     const extraColsSelect = extraCols.length > 0 ? extraCols.map(c => `"${c}"`).join(', ') + ',' : '';
 
@@ -96,6 +97,42 @@ async function processAndCreateSQLTable(conn, fileName, tableName) {
             CASE WHEN UPPER(TRIM(CAST(${colADR} AS VARCHAR))) IN ('SI', 'SÍ') THEN 1 ELSE 0 END AS ADR_Binario,
             
             CAST(${colFechaExpedicion} AS VARCHAR) AS FechaExpedicion,
+            
+            CASE 
+                WHEN ${colFechaRealInicio} IS NOT NULL AND CAST(${colFechaRealInicio} AS VARCHAR) != '' THEN strftime(COALESCE(
+                    TRY_CAST(${colFechaRealInicio} AS TIMESTAMP),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y %H:%M:%S'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y %H:%M'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y %H:%M:%S'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y %H:%M'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%m/%d/%Y %H:%M:%S'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%m/%d/%Y %H:%M'),
+                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d %H:%M:%S'),
+                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d %H:%M'),
+                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d')
+                ), '%d/%m/%Y')
+                ELSE NULL
+            END AS "Fecha Inicio",
+            
+            CASE 
+                WHEN ${colFechaRealInicio} IS NOT NULL AND CAST(${colFechaRealInicio} AS VARCHAR) != '' THEN strftime(COALESCE(
+                    TRY_CAST(${colFechaRealInicio} AS TIMESTAMP),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y %H:%M:%S'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y %H:%M'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y %H:%M:%S'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y %H:%M'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%m/%d/%Y %H:%M:%S'),
+                    TRY_STRPTIME(${colFechaRealInicio}, '%m/%d/%Y %H:%M'),
+                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d %H:%M:%S'),
+                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d %H:%M'),
+                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d')
+                ), '%H:%M')
+                ELSE NULL
+            END AS "Hora Inicio",
             
             COALESCE(
                 TRY_CAST(${colFechaExpedicion} AS TIMESTAMP),
