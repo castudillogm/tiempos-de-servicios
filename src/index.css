@@ -91,3 +91,13 @@ input:focus, select:focus {
   stroke-opacity: 0 !important;
   stroke: transparent !important;
 }
+
+.action-button {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.node-group:hover .action-button,
+.action-button:hover {
+  opacity: 1;
+}

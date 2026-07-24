@@ -132,7 +132,7 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
 
   if (annotation.type === 'square') {
     return (
-      <g transform={`translate(${pos.x}, ${pos.y})`}>
+      <g className="node-group" transform={`translate(${pos.x}, ${pos.y})`}>
         <rect x="0" y="0" width="100" height="40" fill="#fff" stroke="var(--grupamar-azul-oscuro)" strokeWidth="2" rx="5" filter="none" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ cursor: 'move' }} />
         {!isEditing ? (
           <text x="50" y="25" textAnchor="middle" fill="#333" pointerEvents="none" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif', textShadow: 'none' }}>
@@ -143,15 +143,17 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
             <input autoFocus value={text} onChange={e => setText(e.target.value)} onBlur={handleBlur} onPointerDown={e => e.stopPropagation()} style={{ width: '100%', height: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', textAlign: 'center', fontFamily: 'Arial' }} />
           </foreignObject>
         )}
-        <circle cx="100" cy="0" r="8" fill="var(--grupamar-naranja)" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer', stroke: 'none' }} />
-        <text x="100" y="3.5" fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none" style={{ textShadow: 'none' }}>✕</text>
+        <g className="action-button" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }}>
+          <circle cx="100" cy="0" r="8" fill="var(--grupamar-naranja)" style={{ stroke: 'none' }} />
+          <text x="100" y="3.5" fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none" style={{ textShadow: 'none' }}>✕</text>
+        </g>
       </g>
     );
   }
 
   if (annotation.type === 'text') {
     return (
-      <g transform={`translate(${pos.x}, ${pos.y})`}>
+      <g className="node-group" transform={`translate(${pos.x}, ${pos.y})`}>
         {!isEditing ? (
           <text x="0" y="0" fill="#333" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ fontSize: '16px', fontFamily: 'Arial, sans-serif', fontWeight: 'normal', cursor: 'move', textShadow: 'none' }}>
             {text || 'Clic para editar'}
@@ -161,15 +163,17 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
             <input autoFocus value={text} onChange={e => setText(e.target.value)} onBlur={handleBlur} onPointerDown={e => e.stopPropagation()} style={{ width: '100%', height: '100%', boxSizing: 'border-box', border: '1px solid #ccc', background: '#fff', fontFamily: 'Arial' }} />
           </foreignObject>
         )}
-        <circle cx="-10" cy="-5" r="8" fill="var(--grupamar-naranja)" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer', stroke: 'none' }} />
-        <text x="-10" y="-1.5" fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none" style={{ textShadow: 'none' }}>✕</text>
+        <g className="action-button" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }}>
+          <circle cx="-10" cy="-5" r="8" fill="var(--grupamar-naranja)" style={{ stroke: 'none' }} />
+          <text x="-10" y="-1.5" fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none" style={{ textShadow: 'none' }}>✕</text>
+        </g>
       </g>
     );
   }
 
   if (annotation.type === 'arrow') {
     return (
-      <g>
+      <g className="node-group">
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
             <polygon points="0 0, 10 3.5, 0 7" fill="var(--grupamar-azul-oscuro)" />
@@ -178,8 +182,10 @@ const AnnotationNode = ({ annotation, onUpdate, onDelete }) => {
         <line x1={pos.x} y1={pos.y} x2={pos.x2} y2={pos.y2} stroke="var(--grupamar-azul-oscuro)" strokeWidth="3" markerEnd="url(#arrowhead)" />
         <circle cx={pos.x} cy={pos.y} r="8" fill="var(--grupamar-azul-claro)" onPointerDown={(e) => handlePointerDown(e, 'main')} style={{ cursor: 'move', stroke: 'none' }} />
         <circle cx={pos.x2} cy={pos.y2} r="8" fill="var(--grupamar-naranja)" onPointerDown={(e) => handlePointerDown(e, 'endPoint')} style={{ cursor: 'move', stroke: 'none' }} />
-        <circle cx={pos.x} cy={pos.y - 15} r="8" fill="var(--grupamar-naranja)" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer', stroke: 'none' }} />
-        <text x={pos.x} y={pos.y - 11.5} fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none" style={{ textShadow: 'none' }}>✕</text>
+        <g className="action-button" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ cursor: 'pointer' }}>
+          <circle cx={pos.x} cy={pos.y - 15} r="8" fill="var(--grupamar-naranja)" style={{ stroke: 'none' }} />
+          <text x={pos.x} y={pos.y - 11.5} fill="#fff" fontSize="10px" textAnchor="middle" pointerEvents="none" style={{ textShadow: 'none' }}>✕</text>
+        </g>
       </g>
     );
   }
@@ -664,7 +670,7 @@ function App() {
     }
 
     return (
-      <g>
+      <g className="node-group">
         <circle r="20" fill="var(--grupamar-azul-claro)" stroke="none" strokeWidth="0" onClick={handleNodeClick} style={{ cursor: selectedTool ? 'crosshair' : 'pointer' }} />
         <text fill="#fff" stroke="none" strokeWidth="0" x="-10" y="5" onClick={handleNodeClick} style={{ cursor: selectedTool ? 'crosshair' : 'pointer', fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif', textShadow: 'none' }}>
         {String(nodeDatum.name || '').substring(0, 2).toUpperCase()}
@@ -678,14 +684,14 @@ function App() {
         </text>
       )}
       {nodeDatum.pathKey && (
-        <g transform="translate(-10, -35)" onClick={() => handlePruneNode(nodeDatum.pathKey)} style={{ cursor: 'pointer' }}>
+        <g className="action-button" transform="translate(-10, -35)" onClick={() => handlePruneNode(nodeDatum.pathKey)} style={{ cursor: 'pointer' }}>
           <circle r="10" fill="var(--grupamar-naranja)" stroke="none" strokeWidth="0" />
           <text fill="#fff" stroke="none" strokeWidth="0" x="-4.5" y="4.5" fontSize="14px" fontWeight="bold" style={{ fontFamily: 'Arial, sans-serif', textShadow: 'none' }}>✕</text>
           <title>Podar rama</title>
         </g>
       )}
       {nodeDatum.hasPrunedChildren && (
-        <g transform="translate(15, -35)" onClick={(e) => { e.stopPropagation(); nodeDatum.prunedPaths.forEach(p => handleRestoreNode(p)); }} style={{ cursor: 'pointer' }}>
+        <g className="action-button" transform="translate(15, -35)" onClick={(e) => { e.stopPropagation(); nodeDatum.prunedPaths.forEach(p => handleRestoreNode(p)); }} style={{ cursor: 'pointer' }}>
           <circle r="10" fill="#28a745" stroke="none" strokeWidth="0" />
           <text fill="#fff" stroke="none" strokeWidth="0" x="-5" y="4.5" fontSize="16px" fontWeight="bold" style={{ fontFamily: 'Arial, sans-serif', textShadow: 'none' }}>+</text>
           <title>Restaurar nodos eliminados de esta rama</title>
