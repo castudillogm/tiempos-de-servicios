@@ -813,8 +813,8 @@ function App() {
       {/* Data Load Area */}
       {!hasData && pendingColumns === null && (
         <div className="card" style={{ marginBottom: '30px', display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: 'var(--grupamar-gris-claro)', border: 'none' }}>
-          <h3 style={{ color: 'var(--grupamar-azul-oscuro)', margin: 0 }}>Carga los datos aquí Por favor</h3>
-          <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <h3 style={{ color: 'var(--grupamar-azul-oscuro)', margin: 0, textAlign: 'center' }}>Carga los datos aquí Por favor</h3>
+          <div style={{ display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
             <input type="file" accept=".csv" onChange={handleFileUpload} ref={fileInputRef} style={{ display: 'none' }} />
             <button onClick={() => fileInputRef.current?.click()} style={{ padding: '12px 30px', borderRadius: '30px', border: 'none', backgroundColor: 'var(--grupamar-azul-oscuro)', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
               Cargar Archivo CSV Local
@@ -826,10 +826,14 @@ function App() {
                 setIsLinkAuthenticated(false);
                 setIsLinkModalOpen(true);
               }} 
-              style={{ padding: '12px 30px', borderRadius: '30px', border: 'none', backgroundColor: 'var(--grupamar-azul-claro)', color: '#fff', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+              style={{ padding: '12px 30px', borderRadius: '30px', border: 'none', backgroundColor: 'var(--grupamar-naranja)', color: '#fff', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               <span>Enlace de Datos</span>
-              <span style={{ fontSize: '18px' }}>💾</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
             </button>
           </div>
           {isLoading && <span style={{ color: 'var(--grupamar-naranja)', fontWeight: 'bold' }}>Procesando Datos, Espere...</span>}
