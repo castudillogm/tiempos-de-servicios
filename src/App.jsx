@@ -4,7 +4,7 @@ import Tree from 'react-d3-tree';
 import { calculateTukeyStats, fitOLS, calculateGaussianCurve } from './utils/statistics';
 import { defaultFilterState } from './utils/dataProcessing';
 import { loadDataFromFile, loadDataFromURL, executeQuery, getUniqueValuesFromDB, getDynamicColumns } from './utils/duckdb';
-import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from './utils/firebase';
 
 const MultiSelectCheckbox = ({ label, options, value, onChange }) => {
@@ -199,7 +199,10 @@ function App() {
   const [treeFilters, setTreeFilters] = useState(defaultFilterState);
   const [isPending, startTransition] = useTransition();
   const [isLoading, setIsLoading] = useState(false);
-  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
+  const [googleSheetUrl, setGoogleSheetUrl] = useState(() => localStorage.getItem("savedGoogleSheetUrl") || "");
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [isLinkAuthenticated, setIsLinkAuthenticated] = useState(false);
+  const [linkPasswordInput, setLinkPasswordInput] = useState("");
   const [gaussPct, setGaussPct] = useState(100);
   const [tempGaussPct, setTempGaussPct] = useState(100);
   const [activeTab, setActiveTab] = useState('ANALISIS');
@@ -219,6 +222,21 @@ function App() {
   ];
   const [filterOrder, setFilterOrder] = useState(initialFixedFilters);
   const [draggedItemIdx, setDraggedItemIdx] = useState(null);
+
+  useEffect(() => {
+    const fetchGlobalLink = async () => {
+      try {
+        const linkDoc = await getDoc(doc(db, "settings", "globalLink"));
+        if (linkDoc.exists() && linkDoc.data().url) {
+          setGoogleSheetUrl(linkDoc.data().url);
+          localStorage.setItem("savedGoogleSheetUrl", linkDoc.data().url);
+        }
+      } catch (error) {
+        console.error("Error fetching global link: ", error);
+      }
+    };
+    fetchGlobalLink();
+  }, []);
 
   useEffect(() => {
     setFilterOrder(prev => {
@@ -802,18 +820,89 @@ function App() {
               Cargar Archivo CSV Local
             </button>
             <span style={{ fontWeight: 'bold', color: 'var(--grupamar-azul-oscuro)' }}>ó</span>
-            <input 
-              type="text" 
-              placeholder="Pega el enlace público de Google Sheet..." 
-              value={googleSheetUrl}
-              onChange={(e) => setGoogleSheetUrl(e.target.value)}
-              style={{ flex: '1', minWidth: '250px', borderRadius: '30px', padding: '12px 20px', border: '1px solid #ccc' }}
-            />
-            <button onClick={handleFetchGoogleSheet} style={{ padding: '12px 30px', borderRadius: '30px', border: 'none', backgroundColor: 'var(--grupamar-azul-claro)', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
-              Obtener Datos
+            <button 
+              onClick={() => {
+                setLinkPasswordInput("");
+                setIsLinkAuthenticated(false);
+                setIsLinkModalOpen(true);
+              }} 
+              style={{ padding: '12px 30px', borderRadius: '30px', border: 'none', backgroundColor: 'var(--grupamar-azul-claro)', color: '#fff', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <span>Enlace de Datos</span>
+              <span style={{ fontSize: '18px' }}>💾</span>
             </button>
           </div>
           {isLoading && <span style={{ color: 'var(--grupamar-naranja)', fontWeight: 'bold' }}>Procesando Datos, Espere...</span>}
+        </div>
+      )}
+
+      {/* Modal for Google Sheet Link */}
+      {isLinkModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '15px', width: '400px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
+            {!isLinkAuthenticated ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <h3 style={{ margin: 0, color: 'var(--grupamar-azul-oscuro)' }}>Autenticación Requerida</h3>
+                <input 
+                  type="password" 
+                  placeholder="Clave (6 caracteres)" 
+                  value={linkPasswordInput}
+                  onChange={(e) => setLinkPasswordInput(e.target.value)}
+                  style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
+                />
+                <button 
+                  onClick={() => {
+                    if (linkPasswordInput === "GRIGRU") {
+                      setIsLinkAuthenticated(true);
+                    } else {
+                      alert("Clave incorrecta");
+                    }
+                  }}
+                  style={{ padding: '10px', backgroundColor: 'var(--grupamar-azul-oscuro)', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  Acceder
+                </button>
+                <button 
+                  onClick={() => setIsLinkModalOpen(false)}
+                  style={{ padding: '10px', backgroundColor: '#ccc', color: '#333', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <h3 style={{ margin: 0, color: 'var(--grupamar-azul-oscuro)' }}>Enlace de Datos Guardado</h3>
+                <input 
+                  type="text" 
+                  placeholder="Pega el enlace público de Google Sheet..." 
+                  value={googleSheetUrl}
+                  onChange={(e) => {
+                    const newUrl = e.target.value;
+                    setGoogleSheetUrl(newUrl);
+                    localStorage.setItem("savedGoogleSheetUrl", newUrl);
+                    setDoc(doc(db, "settings", "globalLink"), { url: newUrl }, { merge: true })
+                      .catch(err => console.error("Error saving global link", err));
+                  }}
+                  style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
+                />
+                <button 
+                  onClick={() => {
+                    setIsLinkModalOpen(false);
+                    handleFetchGoogleSheet();
+                  }}
+                  style={{ padding: '10px', backgroundColor: 'var(--grupamar-azul-claro)', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  Obtener Datos
+                </button>
+                <button 
+                  onClick={() => setIsLinkModalOpen(false)}
+                  style={{ padding: '10px', backgroundColor: '#ccc', color: '#333', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
