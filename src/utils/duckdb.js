@@ -38,7 +38,8 @@ async function processAndCreateSQLTable(conn, fileName, tableName) {
     
     // First, let's get the columns that actually exist in the CSV
     const descResult = await conn.query(`DESCRIBE SELECT * FROM read_csv_auto('${fileName}', normalize_names=true, header=true)`);
-    const columns = descResult.toArray().map(r => r.toJSON().column_name.toLowerCase());
+    const allColsInfo = descResult.toArray().map(r => r.toJSON());
+    const columns = allColsInfo.map(r => r.column_name.toLowerCase());
     
     const getCol = (possibleNames) => {
         const found = possibleNames.find(n => columns.includes(n.toLowerCase()));
@@ -59,7 +60,40 @@ async function processAndCreateSQLTable(conn, fileName, tableName) {
 
     const usedCols = [colOrigen, colDestino, colFasePadre, colFase, colADR, colFechaExpedicion, colFechaRealInicio, colCompleto, colCodigo, colNumPartidas, colDuracionMinutos].map(c => c.toLowerCase());
     const extraCols = columns.filter(c => !usedCols.includes(c) && c !== "''");
-    const extraColsSelect = extraCols.length > 0 ? extraCols.map(c => `"${c}"`).join(', ') + ',' : '';
+
+    const dateTryStrptime = (colName) => `
+        COALESCE(
+            TRY_CAST(${colName} AS TIMESTAMP),
+            TRY_STRPTIME(${colName}, '%d/%m/%Y %H:%M:%S'),
+            TRY_STRPTIME(${colName}, '%d/%m/%Y %H:%M'),
+            TRY_STRPTIME(${colName}, '%d/%m/%Y'),
+            TRY_STRPTIME(${colName}, '%d-%m-%Y %H:%M:%S'),
+            TRY_STRPTIME(${colName}, '%d-%m-%Y %H:%M'),
+            TRY_STRPTIME(${colName}, '%d-%m-%Y'),
+            TRY_STRPTIME(${colName}, '%m/%d/%Y %H:%M:%S'),
+            TRY_STRPTIME(${colName}, '%m/%d/%Y %H:%M'),
+            TRY_STRPTIME(TRIM(CAST(${colName} AS VARCHAR)), '%y%m%d %H:%M:%S'),
+            TRY_STRPTIME(TRIM(CAST(${colName} AS VARCHAR)), '%y%m%d %H:%M'),
+            TRY_STRPTIME(TRIM(CAST(${colName} AS VARCHAR)), '%y%m%d')
+        )
+    `;
+
+    const getDayOfWeekSql = (colName) => `
+        CASE ISODOW(${dateTryStrptime(colName)})
+            WHEN 1 THEN 'Lunes' WHEN 2 THEN 'Martes' WHEN 3 THEN 'Miércoles' 
+            WHEN 4 THEN 'Jueves' WHEN 5 THEN 'Viernes' WHEN 6 THEN 'Sábado' WHEN 7 THEN 'Domingo'
+            ELSE CAST(${colName} AS VARCHAR)
+        END
+    `;
+
+    const extraColsSelect = extraCols.length > 0 ? extraCols.map(c => {
+        const info = allColsInfo.find(info => info.column_name.toLowerCase() === c);
+        const isDateName = c.includes('fecha');
+        if (info && (info.column_type === 'TIMESTAMP' || info.column_type === 'DATE' || isDateName)) {
+            return `${getDayOfWeekSql(`"${c}"`)} AS "${c}"`;
+        }
+        return `"${c}"`;
+    }).join(', ') + ',' : '';
 
     const createTableQuery = `
         CREATE TABLE ${tableName} AS 
@@ -99,93 +133,25 @@ async function processAndCreateSQLTable(conn, fileName, tableName) {
             CAST(${colFechaExpedicion} AS VARCHAR) AS FechaExpedicion,
             
             CASE 
-                WHEN ${colFechaRealInicio} IS NOT NULL AND CAST(${colFechaRealInicio} AS VARCHAR) != '' THEN strftime(COALESCE(
-                    TRY_CAST(${colFechaRealInicio} AS TIMESTAMP),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y %H:%M'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y %H:%M'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%m/%d/%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%m/%d/%Y %H:%M'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d %H:%M:%S'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d %H:%M'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d')
-                ), '%d/%m/%Y')
+                WHEN ${colFechaRealInicio} IS NOT NULL AND CAST(${colFechaRealInicio} AS VARCHAR) != '' THEN
+                    ${getDayOfWeekSql(colFechaRealInicio)}
                 ELSE NULL
             END AS "Fecha Inicio",
             
             CASE 
-                WHEN ${colFechaRealInicio} IS NOT NULL AND CAST(${colFechaRealInicio} AS VARCHAR) != '' THEN strftime(COALESCE(
-                    TRY_CAST(${colFechaRealInicio} AS TIMESTAMP),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y %H:%M'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d/%m/%Y'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y %H:%M'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%d-%m-%Y'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%m/%d/%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaRealInicio}, '%m/%d/%Y %H:%M'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d %H:%M:%S'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d %H:%M'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaRealInicio} AS VARCHAR)), '%y%m%d')
-                ), '%H:%M')
+                WHEN ${colFechaRealInicio} IS NOT NULL AND CAST(${colFechaRealInicio} AS VARCHAR) != '' THEN strftime(${dateTryStrptime(colFechaRealInicio)}, '%H:%M')
                 ELSE NULL
             END AS "Hora Inicio",
             
-            COALESCE(
-                TRY_CAST(${colFechaExpedicion} AS TIMESTAMP),
-                TRY_STRPTIME(${colFechaExpedicion}, '%d/%m/%Y %H:%M:%S'),
-                TRY_STRPTIME(${colFechaExpedicion}, '%d/%m/%Y %H:%M'),
-                TRY_STRPTIME(${colFechaExpedicion}, '%d/%m/%Y'),
-                TRY_STRPTIME(${colFechaExpedicion}, '%d-%m-%Y %H:%M:%S'),
-                TRY_STRPTIME(${colFechaExpedicion}, '%d-%m-%Y %H:%M'),
-                TRY_STRPTIME(${colFechaExpedicion}, '%d-%m-%Y'),
-                TRY_STRPTIME(${colFechaExpedicion}, '%m/%d/%Y %H:%M:%S'),
-                TRY_STRPTIME(${colFechaExpedicion}, '%m/%d/%Y %H:%M'),
-                TRY_STRPTIME(TRIM(CAST(${colFechaExpedicion} AS VARCHAR)), '%y%m%d %H:%M:%S'),
-                TRY_STRPTIME(TRIM(CAST(${colFechaExpedicion} AS VARCHAR)), '%y%m%d %H:%M'),
-                TRY_STRPTIME(TRIM(CAST(${colFechaExpedicion} AS VARCHAR)), '%y%m%d')
-            ) AS FechaTs,
+            ${dateTryStrptime(colFechaExpedicion)} AS FechaTs,
             
-            CASE ISODOW(
-                COALESCE(
-                    TRY_CAST(${colFechaExpedicion} AS TIMESTAMP),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d/%m/%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d/%m/%Y %H:%M'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d/%m/%Y'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d-%m-%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d-%m-%Y %H:%M'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d-%m-%Y'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%m/%d/%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%m/%d/%Y %H:%M'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaExpedicion} AS VARCHAR)), '%y%m%d %H:%M:%S'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaExpedicion} AS VARCHAR)), '%y%m%d %H:%M'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaExpedicion} AS VARCHAR)), '%y%m%d')
-                )
-            )
+            CASE ISODOW(${dateTryStrptime(colFechaExpedicion)})
                 WHEN 1 THEN 'Lunes' WHEN 2 THEN 'Martes' WHEN 3 THEN 'Miércoles' 
                 WHEN 4 THEN 'Jueves' WHEN 5 THEN 'Viernes' WHEN 6 THEN 'Sábado' WHEN 7 THEN 'Domingo'
                 ELSE 'Lunes'
             END AS Dia,
             
-            CASE WHEN ISODOW(
-                COALESCE(
-                    TRY_CAST(${colFechaExpedicion} AS TIMESTAMP),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d/%m/%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d/%m/%Y %H:%M'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d/%m/%Y'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d-%m-%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d-%m-%Y %H:%M'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%d-%m-%Y'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%m/%d/%Y %H:%M:%S'),
-                    TRY_STRPTIME(${colFechaExpedicion}, '%m/%d/%Y %H:%M'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaExpedicion} AS VARCHAR)), '%y%m%d %H:%M:%S'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaExpedicion} AS VARCHAR)), '%y%m%d %H:%M'),
-                    TRY_STRPTIME(TRIM(CAST(${colFechaExpedicion} AS VARCHAR)), '%y%m%d')
-                )
-            ) >= 4 THEN 1 ELSE 0 END AS Dia_Binario,
+            CASE WHEN ISODOW(${dateTryStrptime(colFechaExpedicion)}) >= 4 THEN 1 ELSE 0 END AS Dia_Binario,
             
             CASE WHEN UPPER(TRIM(CAST(${colCompleto} AS VARCHAR))) = 'SI' THEN 'SI' ELSE 'NO' END AS Completo,
             
