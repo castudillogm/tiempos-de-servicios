@@ -202,7 +202,17 @@ export async function loadDataFromFile(file, tableName = 'records') {
 export async function getUniqueValuesFromDB(field) {
     const { conn } = await getDuckDB();
     const result = await conn.query(`SELECT DISTINCT "${field}" as val FROM records WHERE "${field}" IS NOT NULL AND CAST("${field}" AS VARCHAR) != '' ORDER BY val`);
-    return result.toArray().map(r => r.toJSON().val);
+    let values = result.toArray().map(r => r.toJSON().val);
+    
+    // Si los valores detectados son exclusivamente días de la semana, los ordenamos cronológicamente
+    const daysOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const isDayList = values.length > 0 && values.every(v => daysOrder.includes(v));
+    
+    if (isDayList) {
+        values.sort((a, b) => daysOrder.indexOf(a) - daysOrder.indexOf(b));
+    }
+    
+    return values;
 }
 
 export async function getDynamicColumns(tableName = 'records') {
