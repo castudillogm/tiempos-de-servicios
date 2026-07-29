@@ -320,7 +320,14 @@ function App() {
       const where = buildWhereClause(currentFilters, field, dynCols);
       const query = `SELECT DISTINCT "${field}" as val FROM records ${where} ${where ? 'AND' : 'WHERE'} "${field}" IS NOT NULL AND CAST("${field}" AS VARCHAR) != '' ORDER BY val`;
       const result = await executeQuery(query);
-      return result.map(r => r.val);
+      let values = result.map(r => r.val);
+      
+      const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+      const isDayList = values.length > 0 && values.every(v => diasSemana.includes(v));
+      if (isDayList) {
+          values.sort((a, b) => diasSemana.indexOf(a) - diasSemana.indexOf(b));
+      }
+      return values;
   };
 
   const updateDependentOptions = async (currentFilters, dynCols = dynamicColumns) => {
