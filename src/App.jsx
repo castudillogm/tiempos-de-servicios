@@ -218,7 +218,8 @@ function App() {
     { key: 'plazaDestino', name: 'Plaza Destino', dbKey: 'PlazaDestino' },
     { key: 'zonaDestino', name: 'Zona Destino', dbKey: 'ZonaDestino' },
     { key: 'dia', name: 'Día Expedición', dbKey: 'Dia' },
-    { key: 'adr', name: 'ADR', dbKey: 'ADR' }
+    { key: 'adr', name: 'ADR', dbKey: 'ADR' },
+    { key: 'completo', name: 'Completo', dbKey: 'Completo' }
   ];
   const [filterOrder, setFilterOrder] = useState(initialFixedFilters);
   const [draggedItemIdx, setDraggedItemIdx] = useState(null);
@@ -281,10 +282,10 @@ function App() {
   const [selectedPendingColumns, setSelectedPendingColumns] = useState([]);
   
   const [analysisDbOptions, setAnalysisDbOptions] = useState({
-    FasePadre: [], Fase: [], PlazaOrigen: [], PlazaDestino: [], ZonaDestino: [], Dia: [], ADR: []
+    FasePadre: [], Fase: [], PlazaOrigen: [], PlazaDestino: [], ZonaDestino: [], Dia: [], ADR: [], Completo: []
   });
   const [treeDbOptions, setTreeDbOptions] = useState({
-    FasePadre: [], Fase: [], PlazaOrigen: [], PlazaDestino: [], ZonaDestino: [], Dia: [], ADR: []
+    FasePadre: [], Fase: [], PlazaOrigen: [], PlazaDestino: [], ZonaDestino: [], Dia: [], ADR: [], Completo: []
   });
 
   const fileInputRef = useRef(null);
@@ -339,15 +340,16 @@ function App() {
         getFilteredUniqueValues('PlazaDestino', currentFilters, dynCols),
         getFilteredUniqueValues('ZonaDestino', currentFilters, dynCols),
         getFilteredUniqueValues('Dia', currentFilters, dynCols),
-        getFilteredUniqueValues('ADR', currentFilters, dynCols)
+        getFilteredUniqueValues('ADR', currentFilters, dynCols),
+        getFilteredUniqueValues('Completo', currentFilters, dynCols)
       ];
       
       const dynPromises = dynCols.map(col => getFilteredUniqueValues(col, currentFilters, dynCols));
       
       const results = await Promise.all([...fixedPromises, ...dynPromises]);
       
-      const [fasePadre, fase, plazaOrigen, plazaDestino, zonaDestino, dia, adr] = results.slice(0, 7);
-      const dynResults = results.slice(7);
+      const [fasePadre, fase, plazaOrigen, plazaDestino, zonaDestino, dia, adr, completo] = results.slice(0, 8);
+      const dynResults = results.slice(8);
       
       const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
       dia.sort((a, b) => {
@@ -356,7 +358,7 @@ function App() {
         return (ia > -1 ? ia : 99) - (ib > -1 ? ib : 99);
       });
 
-      const newDbOptions = { FasePadre: fasePadre, Fase: fase, PlazaOrigen: plazaOrigen, PlazaDestino: plazaDestino, ZonaDestino: zonaDestino, Dia: dia, ADR: adr };
+      const newDbOptions = { FasePadre: fasePadre, Fase: fase, PlazaOrigen: plazaOrigen, PlazaDestino: plazaDestino, ZonaDestino: zonaDestino, Dia: dia, ADR: adr, Completo: completo };
       dynCols.forEach((col, idx) => {
          newDbOptions[col] = dynResults[idx];
       });
