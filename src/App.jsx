@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect, useTransition } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
-import Tree from 'react-d3-tree';
+import DrawioEditor from './components/DrawioEditor';
 import { calculateTukeyStats, fitOLS, calculateGaussianCurve } from './utils/statistics';
 import { defaultFilterState } from './utils/dataProcessing';
 import { loadDataFromFile, loadDataFromURL, executeQuery, getUniqueValuesFromDB, getDynamicColumns } from './utils/duckdb';
@@ -207,8 +207,12 @@ function App() {
   const [tempGaussPct, setTempGaussPct] = useState(100);
   const [activeTab, setActiveTab] = useState('ANALISIS');
   const [dynamicColumns, setDynamicColumns] = useState([]);
-  const [savedTreesList, setSavedTreesList] = useState([]);
-  const [hiddenNodePaths, setHiddenNodePaths] = useState([]);
+  const [savedDrawiosList, setSavedDrawiosList] = useState([]);
+  const [currentDrawioXml, setCurrentDrawioXml] = useState(null);
+  const [currentDrawioId, setCurrentDrawioId] = useState(null);
+  const [drawioKey, setDrawioKey] = useState(Date.now());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const drawioFileInputRef = useRef(null);
   const [annotations, setAnnotations] = useState([]);
   const [selectedTool, setSelectedTool] = useState(null);
   const initialFixedFilters = [
@@ -581,222 +585,92 @@ function App() {
     return data;
   }, [records, paretoKeys]);
 
-  const treeData = useMemo(() => {
-    const activeLevels = filterOrder.filter(lvl => treeFilters[lvl.key] && treeFilters[lvl.key] !== 'ALL');
 
-    if (activeLevels.length === 0) {
-      return [{ name: 'Filtros Inactivos', attributes: { Info: 'Selecciona al menos un filtro para ver la rama' } }];
-    }
 
-    const buildNodes = (levelIndex, parentPath = []) => {
-      if (levelIndex >= activeLevels.length) return undefined;
-      const currentLevel = activeLevels[levelIndex];
-      const selectedValues = treeFilters[currentLevel.key].split(',');
-      
-      const nodes = [];
-      let hasPrunedChildren = false;
-      const prunedPaths = [];
-
-      for (const val of selectedValues) {
-         const currentPath = [...parentPath, val];
-         const pathKey = currentPath.join('|||');
-         
-         const isPruned = hiddenNodePaths && hiddenNodePaths.includes(pathKey);
-
-         if (isPruned) {
-           hasPrunedChildren = true;
-           prunedPaths.push(pathKey);
-           continue;
-         }
-
-         const node = { 
-            name: val, 
-            attributes: { Nivel: currentLevel.name },
-            pathKey,
-         };
-         
-         const childrenResult = buildNodes(levelIndex + 1, currentPath);
-         if (childrenResult) {
-            if (childrenResult.nodes && childrenResult.nodes.length > 0) {
-               node.children = childrenResult.nodes;
-            }
-            if (childrenResult.hasPrunedChildren) {
-               node.hasPrunedChildren = true;
-               node.prunedPaths = childrenResult.prunedPaths;
-            }
-         }
-         nodes.push(node);
-      }
-      return { nodes, hasPrunedChildren, prunedPaths };
-    };
-
-    const rootResult = buildNodes(0);
-    const builtTree = rootResult ? rootResult.nodes : [];
-
-    if (!builtTree || builtTree.length === 0) {
-      return [{ name: 'Vacío', attributes: { Info: 'Todas las ramas han sido podadas.' } }];
-    }
-    if (builtTree.length > 1) {
-      return [{
-        name: 'invisible_root',
-        attributes: { Nivel: 'Origen' },
-        pathKey: 'invisible_root',
-        children: builtTree
-      }];
-    }
-    return builtTree;
-  }, [treeFilters, filterOrder, hiddenNodePaths]);
-
-  const handlePruneNode = (pathKey) => {
-    setHiddenNodePaths(prev => [...prev, pathKey]);
-  };
-
-  const handleRestoreNode = (pathKey) => {
-    setHiddenNodePaths(prev => prev.filter(p => p !== pathKey));
-  };
-
-  const handleAddAnnotation = (pathKey) => {
-    if (!selectedTool) return;
-    const newId = Date.now().toString();
-    const newAnnotation = {
-      id: newId,
-      pathKey,
-      type: selectedTool,
-      x: 0,
-      y: -60,
-      content: selectedTool === 'text' ? 'Texto' : selectedTool === 'square' ? 'Caja' : '',
-      x2: 100,
-      y2: -60,
-    };
-    setAnnotations(prev => [...prev, newAnnotation]);
-    setSelectedTool(null);
-  };
-
-  const handleUpdateAnnotation = (id, newProps) => {
-    setAnnotations(prev => prev.map(ann => ann.id === id ? { ...ann, ...newProps } : ann));
-  };
-
-  const handleDeleteAnnotation = (id) => {
-    setAnnotations(prev => prev.filter(ann => ann.id !== id));
-  };
-
-  const renderCustomNodeElement = ({ nodeDatum, toggleNode }) => {
-    const handleNodeClick = (e) => {
-      if (selectedTool) {
-        e.stopPropagation();
-        handleAddAnnotation(nodeDatum.pathKey);
-      } else {
-        toggleNode();
-      }
-    };
-
-    const nodeAnnotations = annotations.filter(ann => ann.pathKey === nodeDatum.pathKey);
-
-    if (nodeDatum.pathKey === 'invisible_root') {
-      return <g />;
-    }
-
-    return (
-      <g className="node-group">
-        <circle r="20" fill="var(--grupamar-azul-claro)" stroke="none" strokeWidth="0" onClick={handleNodeClick} style={{ cursor: selectedTool ? 'crosshair' : 'pointer' }} />
-        <text fill="#fff" stroke="none" strokeWidth="0" x="-10" y="5" onClick={handleNodeClick} style={{ cursor: selectedTool ? 'crosshair' : 'pointer', fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif', textShadow: 'none' }}>
-        {String(nodeDatum.name || '').substring(0, 2).toUpperCase()}
-      </text>
-      <text fill="#000" stroke="none" strokeWidth="0" x="25" y="-5" style={{ fontWeight: 'bold', fontSize: '14px', fontFamily: 'Arial, sans-serif', textShadow: 'none' }}>
-        {nodeDatum.name}
-      </text>
-      {nodeDatum.attributes?.Nivel && (
-        <text fill="#000" stroke="none" strokeWidth="0" x="25" y="15" style={{ fontSize: '12px', fontFamily: 'Arial, sans-serif', textShadow: 'none' }}>
-          {nodeDatum.attributes.Nivel}
-        </text>
-      )}
-      {nodeDatum.pathKey && (
-        <g className="action-button" transform="translate(-10, -35)" onClick={() => handlePruneNode(nodeDatum.pathKey)} style={{ cursor: 'pointer' }}>
-          <circle r="10" fill="var(--grupamar-naranja)" stroke="none" strokeWidth="0" />
-          <text fill="#fff" stroke="none" strokeWidth="0" x="-4.5" y="4.5" fontSize="14px" fontWeight="bold" style={{ fontFamily: 'Arial, sans-serif', textShadow: 'none' }}>✕</text>
-          <title>Podar rama</title>
-        </g>
-      )}
-      {nodeDatum.hasPrunedChildren && (
-        <g className="action-button" transform="translate(15, -35)" onClick={(e) => { e.stopPropagation(); nodeDatum.prunedPaths.forEach(p => handleRestoreNode(p)); }} style={{ cursor: 'pointer' }}>
-          <circle r="10" fill="#28a745" stroke="none" strokeWidth="0" />
-          <text fill="#fff" stroke="none" strokeWidth="0" x="-5" y="4.5" fontSize="16px" fontWeight="bold" style={{ fontFamily: 'Arial, sans-serif', textShadow: 'none' }}>+</text>
-          <title>Restaurar nodos eliminados de esta rama</title>
-        </g>
-      )}
-      {nodeAnnotations.map(ann => (
-        <AnnotationNode key={ann.id} annotation={ann} onUpdate={(props) => handleUpdateAnnotation(ann.id, props)} onDelete={() => handleDeleteAnnotation(ann.id)} />
-      ))}
-    </g>
-  );
-  };
-
-  const handleSaveTree = async () => {
-    const name = prompt("Introduce un nombre para guardar esta ramificación:");
-    if (!name) return;
-    
+  const handleSaveDrawio = async (xmlData) => {
     try {
       setIsLoading(true);
-      await addDoc(collection(db, "savedTrees"), {
-        name,
-        treeFilters,
-        filterOrder,
-        hiddenNodePaths,
-        createdAt: new Date()
-      });
-      alert("Ramificación guardada exitosamente en Firebase!");
+      if (currentDrawioId) {
+        await setDoc(doc(db, "savedDrawios", currentDrawioId), {
+          xml: xmlData,
+          updatedAt: new Date()
+        }, { merge: true });
+        alert("Diagrama actualizado en Firebase.");
+      } else {
+        const name = prompt("Introduce un nombre para guardar este diagrama:");
+        if (!name) return;
+        const docRef = await addDoc(collection(db, "savedDrawios"), {
+          name,
+          xml: xmlData,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        setCurrentDrawioId(docRef.id);
+        alert("Diagrama guardado exitosamente en Firebase!");
+      }
     } catch (e) {
-      console.error("Error guardando ramificación: ", e);
+      console.error("Error guardando diagrama: ", e);
       alert("Hubo un error al guardar.");
     } finally {
       setIsLoading(false);
-      fetchSavedTrees();
+      fetchSavedDrawios();
     }
   };
 
-  const fetchSavedTrees = async () => {
+  const fetchSavedDrawios = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "savedTrees"));
-      const trees = [];
-      querySnapshot.forEach((doc) => {
-        trees.push({ id: doc.id, ...doc.data() });
+      const querySnapshot = await getDocs(collection(db, "savedDrawios"));
+      const drawios = [];
+      querySnapshot.forEach((d) => {
+        drawios.push({ id: d.id, ...d.data() });
       });
-      setSavedTreesList(trees.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
+      setSavedDrawiosList(drawios.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
     } catch (e) {
-      console.error("Error fetching saved trees", e);
+      console.error("Error fetching saved drawios", e);
     }
   };
 
   useEffect(() => {
     if (activeTab === 'RAMIFICACIONES') {
-      fetchSavedTrees();
+      fetchSavedDrawios();
     }
   }, [activeTab]);
 
-  const handleLoadTree = (tree) => {
-    setFilterOrder(tree.filterOrder);
-    setTreeFilters(tree.treeFilters);
-    setHiddenNodePaths(tree.hiddenNodePaths || []);
-    setIsLoading(true);
-    updateDependentOptions(tree.treeFilters, dynamicColumns).then(newOpts => {
-      if (newOpts) setTreeDbOptions(newOpts);
-      setIsLoading(false);
-    });
+  const handleLoadDrawio = (drawio) => {
+    setCurrentDrawioXml(drawio.xml);
+    setCurrentDrawioId(drawio.id);
   };
 
-  const handleDeleteTree = async (id) => {
-    if (!confirm("¿Seguro que deseas eliminar esta ramificación?")) return;
+  const handleDeleteDrawio = async (id) => {
+    if (!confirm("¿Seguro que deseas eliminar este diagrama?")) return;
     try {
       setIsLoading(true);
-      await deleteDoc(doc(db, "savedTrees", id));
-      await fetchSavedTrees();
-      alert("Ramificación eliminada.");
+      await deleteDoc(doc(db, "savedDrawios", id));
+      if (currentDrawioId === id) {
+        setCurrentDrawioXml(null);
+        setCurrentDrawioId(null);
+      }
+      await fetchSavedDrawios();
+      alert("Diagrama eliminado.");
     } catch (e) {
       console.error("Error eliminando: ", e);
       alert("Hubo un error al eliminar.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDrawioFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setCurrentDrawioXml(event.target.result);
+      setCurrentDrawioId(null);
+      setDrawioKey(Date.now());
+    };
+    reader.readAsText(file);
+    e.target.value = null;
   };
 
   return (
@@ -861,6 +735,15 @@ function App() {
                   placeholder="Clave (6 caracteres)" 
                   value={linkPasswordInput}
                   onChange={(e) => setLinkPasswordInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (linkPasswordInput === "GRIGRU") {
+                        setIsLinkAuthenticated(true);
+                      } else {
+                        alert("Clave incorrecta");
+                      }
+                    }
+                  }}
                   style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
                 />
                 <button 
@@ -895,6 +778,12 @@ function App() {
                     localStorage.setItem("savedGoogleSheetUrl", newUrl);
                     setDoc(doc(db, "settings", "globalLink"), { url: newUrl }, { merge: true })
                       .catch(err => console.error("Error saving global link", err));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setIsLinkModalOpen(false);
+                      handleFetchGoogleSheet();
+                    }
                   }}
                   style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
                 />
@@ -1022,12 +911,6 @@ function App() {
             >
               Módulo de Ramificaciones
             </button>
-            
-            {activeTab === 'RAMIFICACIONES' && (
-              <button onClick={handleSaveTree} style={{ padding: '10px 20px', backgroundColor: 'var(--grupamar-naranja)', color: '#fff', border: 'none', borderRadius: '30px', cursor: 'pointer', fontWeight: 'bold', marginLeft: 'auto' }}>
-                Guardar Ramificación
-              </button>
-            )}
           </div>
 
           {activeTab === 'ANALISIS' && (
@@ -1184,65 +1067,76 @@ function App() {
           )}
 
           {activeTab === 'RAMIFICACIONES' && (
-            <div style={{ display: 'flex', gap: '20px' }}>
-              <div className="card" style={{ flex: '3', height: '600px', backgroundColor: '#fdfdfd', border: '2px dashed #ccc', display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ color: 'var(--grupamar-azul-claro)', marginBottom: '15px', textAlign: 'center' }}>Ramificaciones de Filtros Activos</h3>
-                {hiddenNodePaths.length > 0 && (
-                  <button onClick={() => setHiddenNodePaths([])} style={{ position: 'absolute', top: '15px', left: '15px', padding: '8px 15px', borderRadius: '20px', border: '1px solid var(--grupamar-naranja)', backgroundColor: '#fff', color: 'var(--grupamar-naranja)', cursor: 'pointer', fontWeight: 'bold', zIndex: 10 }}>
-                    ↺ Restaurar {hiddenNodePaths.length} rama(s) podada(s)
-                  </button>
-                )}
-                <div style={{ flex: 1, width: '100%', position: 'relative' }}>
-                  <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: '5px', background: '#fff', padding: '5px', borderRadius: '5px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                    <button onClick={() => setSelectedTool(selectedTool === 'square' ? null : 'square')} style={{ padding: '5px 10px', background: selectedTool === 'square' ? 'var(--grupamar-azul-claro)' : '#eee', color: selectedTool === 'square' ? '#fff' : '#333', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🔲 Cuadro</button>
-                    <button onClick={() => setSelectedTool(selectedTool === 'text' ? null : 'text')} style={{ padding: '5px 10px', background: selectedTool === 'text' ? 'var(--grupamar-azul-claro)' : '#eee', color: selectedTool === 'text' ? '#fff' : '#333', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>📝 Texto</button>
-                    <button onClick={() => setSelectedTool(selectedTool === 'arrow' ? null : 'arrow')} style={{ padding: '5px 10px', background: selectedTool === 'arrow' ? 'var(--grupamar-azul-claro)' : '#eee', color: selectedTool === 'arrow' ? '#fff' : '#333', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>↗ Flecha</button>
+            <div style={{ display: 'flex', position: 'relative' }}>
+              <div className="card" style={{ flex: '1', height: 'calc(100vh - 150px)', backgroundColor: '#fdfdfd', border: '2px dashed #ccc', display: 'flex', flexDirection: 'column', transition: 'all 0.3s' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <h3 style={{ color: 'var(--grupamar-azul-claro)', margin: 0 }}>Editor de Diagramas (Draw.io)</h3>
                   </div>
-                  {selectedTool && <div style={{ position: 'absolute', top: 50, right: 10, zIndex: 10, background: 'var(--grupamar-naranja)', color: '#fff', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', pointerEvents: 'none' }}>Haz clic en un nodo para añadir</div>}
-                  <Tree 
-                    data={treeData} 
-                    orientation="horizontal"
-                    pathFunc="step"
-                    pathClassFunc={(link) => link.source.data.pathKey === 'invisible_root' ? 'hidden-link' : ''}
-                    translate={{ x: treeData[0]?.pathKey === 'invisible_root' ? -350 : 100, y: 250 }}
-                    nodeSize={{ x: 450, y: 100 }}
-                    separation={{ siblings: 1.2, nonSiblings: 1.5 }}
-                    renderCustomNodeElement={renderCustomNodeElement}
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input type="file" accept=".drawio,.xml" onChange={handleDrawioFileUpload} ref={drawioFileInputRef} style={{ display: 'none' }} />
+                    <button onClick={() => drawioFileInputRef.current?.click()} style={{ padding: '8px 15px', borderRadius: '5px', border: 'none', backgroundColor: 'var(--grupamar-azul-oscuro)', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+                      Subir Archivo
+                    </button>
+                    <button onClick={() => { setCurrentDrawioXml(null); setCurrentDrawioId(null); setDrawioKey(Date.now()); }} style={{ padding: '8px 15px', borderRadius: '5px', border: 'none', backgroundColor: 'var(--grupamar-naranja)', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+                      Nuevo
+                    </button>
+                    <button 
+                      onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                      style={{ padding: '8px 15px', borderRadius: '5px', border: 'none', backgroundColor: 'var(--grupamar-azul-claro)', color: '#fff', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}
+                      title="Diagramas Guardados"
+                    >
+                      {isSidebarOpen ? '−' : '+'}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ flex: 1, width: '100%', position: 'relative' }}>
+                  <DrawioEditor 
+                    key={currentDrawioId || drawioKey} 
+                    initialXml={currentDrawioXml} 
+                    onSave={handleSaveDrawio} 
                   />
                 </div>
               </div>
               
-              {/* Panel Lateral: Árboles Guardados */}
-              <div className="card" style={{ flex: '0.5', height: '600px', overflowY: 'auto', backgroundColor: '#f9f9f9', display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ color: 'var(--grupamar-azul-oscuro)', marginBottom: '15px', textAlign: 'center' }}>Ramificaciones Guardadas</h3>
-                {savedTreesList.length === 0 ? (
-                  <p style={{ textAlign: 'center', color: '#888', fontStyle: 'italic', marginTop: '20px' }}>No hay ramificaciones guardadas.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {savedTreesList.map((tree) => (
-                      <div key={tree.id} style={{ backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '10px', padding: '15px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', position: 'relative' }}>
-                        <button 
-                          onClick={() => handleDeleteTree(tree.id)} 
-                          style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', color: 'red', cursor: 'pointer', fontSize: '16px' }}
-                          title="Eliminar Ramificación"
-                        >
-                          ✕
-                        </button>
-                        <h4 style={{ margin: '0 0 5px 0', color: 'var(--grupamar-azul-claro)', paddingRight: '20px' }}>{tree.name}</h4>
-                        <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#888' }}>
-                          {tree.createdAt ? new Date(tree.createdAt.toMillis()).toLocaleString() : 'Sin fecha'}
-                        </p>
-                        <button 
-                          onClick={() => handleLoadTree(tree)}
-                          style={{ width: '100%', padding: '8px', backgroundColor: 'var(--grupamar-naranja)', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
-                        >
-                          Cargar Ramificación
-                        </button>
-                      </div>
-                    ))}
+              {isSidebarOpen && (
+                <div className="card" style={{ width: '300px', height: 'calc(100vh - 150px)', overflowY: 'auto', backgroundColor: '#f9f9f9', display: 'flex', flexDirection: 'column', position: 'absolute', right: 0, top: 0, zIndex: 10, boxShadow: '-2px 0 10px rgba(0,0,0,0.1)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                    <h3 style={{ color: 'var(--grupamar-azul-oscuro)', margin: 0 }}>Guardados</h3>
+                    <button onClick={() => setIsSidebarOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#888' }}>✕</button>
                   </div>
-                )}
-              </div>
+                  {savedDrawiosList.length === 0 ? (
+                    <p style={{ textAlign: 'center', color: '#888', fontStyle: 'italic', marginTop: '20px' }}>No hay diagramas.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {savedDrawiosList.map((drawio) => (
+                        <div key={drawio.id} style={{ backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '10px', padding: '15px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', position: 'relative' }}>
+                          <button 
+                            onClick={() => handleDeleteDrawio(drawio.id)} 
+                            style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', color: 'red', cursor: 'pointer', fontSize: '16px' }}
+                            title="Eliminar"
+                          >
+                            ✕
+                          </button>
+                          <h4 style={{ margin: '0 0 5px 0', color: 'var(--grupamar-azul-claro)', paddingRight: '20px' }}>{drawio.name}</h4>
+                          <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#888' }}>
+                            {drawio.createdAt ? new Date(drawio.createdAt.toMillis()).toLocaleDateString() : ''}
+                          </p>
+                          <button 
+                            onClick={() => {
+                              handleLoadDrawio(drawio);
+                              setIsSidebarOpen(false);
+                            }}
+                            style={{ width: '100%', padding: '8px', backgroundColor: 'var(--grupamar-naranja)', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            Cargar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>
