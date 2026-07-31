@@ -16,8 +16,8 @@ const DrawioEditor = ({ initialXml, onSave }) => {
         if (msg.event === 'init') {
           // iframe is ready
           setIsInitialized(true);
-        } else if (msg.event === 'save') {
-          // Draw.io triggers a save event
+        } else if (msg.event === 'save' || msg.event === 'autosave') {
+          // Draw.io triggers a save or autosave event
           if (onSave) {
             onSave(msg.xml);
           }
@@ -40,6 +40,7 @@ const DrawioEditor = ({ initialXml, onSave }) => {
         if (iframeRef.current && iframeRef.current.contentWindow) {
           iframeRef.current.contentWindow.postMessage(JSON.stringify({
             action: 'load',
+            autosave: 1,
             xml: xmlToLoad
           }), '*');
         }
