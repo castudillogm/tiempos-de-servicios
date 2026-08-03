@@ -585,9 +585,23 @@ function App() {
     return data;
   }, [records, paretoKeys]);
 
-
+  const handleAutosaveDrawio = async (xmlData) => {
+    setCurrentDrawioXml(xmlData);
+    if (currentDrawioId) {
+      try {
+        await setDoc(doc(db, "savedDrawios", currentDrawioId), {
+          xml: xmlData,
+          updatedAt: new Date()
+        }, { merge: true });
+        console.log("Diagrama autoguardado silenciosamente en Firebase.");
+      } catch (e) {
+        console.error("Error en autosave de diagrama: ", e);
+      }
+    }
+  };
 
   const handleSaveDrawio = async (xmlData) => {
+    setCurrentDrawioXml(xmlData);
     try {
       setIsLoading(true);
       if (currentDrawioId) {
@@ -1095,6 +1109,7 @@ function App() {
                     key={currentDrawioId || drawioKey} 
                     initialXml={currentDrawioXml} 
                     onSave={handleSaveDrawio} 
+                    onAutosave={handleAutosaveDrawio}
                   />
                 </div>
               </div>

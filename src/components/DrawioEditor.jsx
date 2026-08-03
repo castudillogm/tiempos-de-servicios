@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-const DrawioEditor = ({ initialXml, onSave }) => {
+const DrawioEditor = ({ initialXml, onSave, onAutosave }) => {
   const iframeRef = useRef(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const loadSentRef = useRef(false);
@@ -16,9 +16,15 @@ const DrawioEditor = ({ initialXml, onSave }) => {
         if (msg.event === 'init') {
           // iframe is ready
           setIsInitialized(true);
-        } else if (msg.event === 'save' || msg.event === 'autosave') {
-          // Draw.io triggers a save or autosave event
+        } else if (msg.event === 'save') {
+          // Draw.io triggers a save event
           if (onSave) {
+            onSave(msg.xml);
+          }
+        } else if (msg.event === 'autosave') {
+          if (onAutosave) {
+            onAutosave(msg.xml);
+          } else if (onSave) {
             onSave(msg.xml);
           }
         }
