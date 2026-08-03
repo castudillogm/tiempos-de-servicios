@@ -595,7 +595,7 @@ function App() {
           xml: xmlData,
           updatedAt: new Date()
         }, { merge: true });
-        alert("Diagrama actualizado en Firebase.");
+        console.log("Diagrama actualizado en Firebase.");
       } else {
         const name = prompt("Introduce un nombre para guardar este diagrama:");
         if (!name) return;
